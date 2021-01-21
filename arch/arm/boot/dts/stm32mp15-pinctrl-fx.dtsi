@@ -180,7 +180,7 @@
 		};
 	};
 
-	i2c2_pins_sleep_c: i2c2-sleep-2 {
+	i2c2_sleep_pins_c: i2c2-sleep-2 {
 		pins {
 			pinmux = <STM32_PINMUX('F', 1, ANALOG)>, /* I2C2_SCL */
 				 <STM32_PINMUX('H', 5, ANALOG)>; /* I2C2_SDA */
@@ -964,7 +964,7 @@
 			slew-rate = <0>;
 		};
 		pins2 {
-			pinmux = <STM32_PINMUX('A', 8, AF13)>, /* UART7_RX */
+			pinmux = <STM32_PINMUX('A', 8, AF13)>; /* UART7_RX */
 			bias-disable;
 		};
 	};
@@ -1025,7 +1025,7 @@
 		};
 	};
 
-	uart1_pins_a: uart1-0 {
+	usart1_pins_a: usart1-0 {
 		pins1 {
 			pinmux = <STM32_PINMUX('A', 9, AF7)>; /* UART1_TX */
 			bias-disable;
