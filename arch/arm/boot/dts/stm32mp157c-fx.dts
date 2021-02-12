@@ -20,7 +20,6 @@
 		serial0 = &uart4;
 		serial1 = &usart3;
 		serial2 = &uart7;
-		serial3 = &usart2;
 	};
 
 	chosen {
@@ -28,6 +27,7 @@
 	};
 };
 
+<<<<<<< HEAD
 &usart2 {
 	pinctrl-names = "default", "sleep", "idle";
 	pinctrl-0 = <&usart2_pins_c>;
@@ -36,6 +36,8 @@
 	status = "okay";
 };
 
+=======
+>>>>>>> 3a3dde5c2fda... Removed things to get kernel to boot
 &usart3 {
 	status = "okay";
 };
@@ -43,4 +45,7 @@
 &uart7 {
 	status = "okay";
 };
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3a3dde5c2fda... Removed things to get kernel to boot
