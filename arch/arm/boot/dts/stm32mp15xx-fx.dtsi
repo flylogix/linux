@@ -104,6 +104,7 @@
 
 &gpu {
 	contiguous-area = <&gpu_reserved>;
+	status = "okay";
 };
 
 &i2c1 {
@@ -346,9 +347,9 @@
 };
 
 &usbotg_hs {
+	dr_mode = "peripheral";
 	phys = <&usbphyc_port1 0>;
 	phy-names = "usb2-phy";
-	usb-role-switch;
 	status = "okay";
 };
 
