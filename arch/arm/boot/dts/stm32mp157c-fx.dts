@@ -27,17 +27,6 @@
 	};
 };
 
-<<<<<<< HEAD
-&usart2 {
-	pinctrl-names = "default", "sleep", "idle";
-	pinctrl-0 = <&usart2_pins_c>;
-	pinctrl-1 = <&usart2_sleep_pins_c>;
-	pinctrl-2 = <&usart2_idle_pins_c>;
-	status = "okay";
-};
-
-=======
->>>>>>> 3a3dde5c2fda... Removed things to get kernel to boot
 &usart3 {
 	status = "okay";
 };
@@ -45,7 +34,7 @@
 &uart7 {
 	status = "okay";
 };
-<<<<<<< HEAD
 
-=======
->>>>>>> 3a3dde5c2fda... Removed things to get kernel to boot
+&bsec{
+	status = "okay";
+};
