@@ -94,6 +94,7 @@
 
 &gpu {
 	contiguous-area = <&gpu_reserved>;
+	status = "okay";
 };
 
 &i2c1 {
@@ -322,39 +323,11 @@
 	status = "okay";
 };
 
-&uart5 {
-	pinctrl-names = "default", "sleep", "idle";
-	pinctrl-0 = <&uart5_pins_a>;
-	pinctrl-1 = <&uart5_sleep_pins_a>;
-	pinctrl-2 = <&uart5_idle_pins_a>;
-	status = "disabled";
-};
-
 &uart7 {
 	pinctrl-names = "default", "sleep", "idle";
 	pinctrl-0 = <&uart7_pins_c>;
 	pinctrl-1 = <&uart7_sleep_pins_c>;
 	pinctrl-2 = <&uart7_idle_pins_c>;
-	status = "disabled";
-};
-
-&uart8 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&uart8_pins_a>;
-	status = "disabled";
-};
-
-&usart1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&usart1_pins_a>;
-	status = "disabled";
-};
-
-&usart2 {
-	pinctrl-names = "default", "sleep", "idle";
-	pinctrl-0 = <&usart2_pins_c>;
-	pinctrl-1 = <&usart2_sleep_pins_c>;
-	pinctrl-2 = <&usart2_idle_pins_c>;
 	status = "disabled";
 };
 
@@ -367,21 +340,15 @@
 	status = "disabled";
 };
 
-&usart6 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&usart6_pins_a>;
-	status = "disabled";
-};
-
 &usbh_ehci {
 	phys = <&usbphyc_port0>;
 	status = "okay";
 };
 
 &usbotg_hs {
+	dr_mode = "peripheral";
 	phys = <&usbphyc_port1 0>;
 	phy-names = "usb2-phy";
-	usb-role-switch;
 	status = "okay";
 };
 
