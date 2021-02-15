@@ -104,7 +104,7 @@
 
 &gpu {
 	contiguous-area = <&gpu_reserved>;
-	status = "okay";
+	status = "disabled";
 };
 
 &i2c1 {
