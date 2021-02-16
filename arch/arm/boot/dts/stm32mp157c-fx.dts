@@ -27,7 +27,7 @@
 	};
 };
 
-&uart3 {
+&usart3 {
 	status = "okay";
 };
 
