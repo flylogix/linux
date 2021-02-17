@@ -226,7 +226,7 @@
 				regulator-min-microvolt = <2900000>;
 				regulator-max-microvolt = <2900000>;
 				interrupts = <IT_CURLIM_LDO5 0>;
-				regulator-boot-on;
+				regulator-always-on;
 			};
 
 			v1v2_hdmi: ldo6 {
