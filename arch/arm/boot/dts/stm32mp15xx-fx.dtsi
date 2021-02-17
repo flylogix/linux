@@ -366,7 +366,6 @@
 };
 
 &usbh_ohci{
-	phys = <&usbphyc_port0>;
 	status = "okay";
 };
 
