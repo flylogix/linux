@@ -22,7 +22,7 @@
 		serial2 = &uart7;
 		serial3 = &usart2;
 		serial4 = &uart5;
-		serial5 = &uart1;
+		serial5 = &usart1;
 	};
 
 	chosen {
@@ -30,11 +30,11 @@
 	};
 };
 
-&uart1 {
+&usart1 {
 	pinctrl-names = "default", "sleep", "idle";
-	pinctrl-0 = <&uart1_pins_a>;
-	pinctrl-1 = <&uart1_sleep_pins_a>;
-	pinctrl-2 = <&uart1_idle_pins_a>;
+	pinctrl-0 = <&usart1_pins_a>;
+	pinctrl-1 = <&usart1_sleep_pins_a>;
+	pinctrl-2 = <&usart1_idle_pins_a>;
 	status = "okay";
 };
 
