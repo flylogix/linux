@@ -57,3 +57,7 @@
 &uart7 {
 	status = "okay";
 };
+
+&usbh_ehci {
+	status = "okay";
+};
