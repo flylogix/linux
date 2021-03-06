@@ -61,3 +61,7 @@
 &usbh_ehci {
 	status = "okay";
 };
+
+&sdmmc2 {
+	status = "okay";
+};
