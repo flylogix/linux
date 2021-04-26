@@ -67,14 +67,8 @@
 			gpios = <&gpiof 6 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "heartbeat";
 			default-state = "off";
+			status = "okay"
 		};
-	};
-
-	ldosel {
-		compatible = "gpio-ldosel";
-		gpios = <&gpiof 14 GPIO_ACTIVE_HIGH>;
-		default-state = "on";
-		status = "okay";
 	};
 
 	usb_phy_tuning:usb-phy-tuning {
