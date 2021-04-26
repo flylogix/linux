@@ -67,7 +67,7 @@
 			gpios = <&gpiof 6 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "heartbeat";
 			default-state = "off";
-			status = "okay"
+			status = "okay";
 		};
 	};
 
