@@ -388,9 +388,8 @@
 };
 
 &usbotg_hs {
-	phys = <&usbphyc_port1 0>;
-	phy-names = "usb2-phy";
-	usb-role-switch;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbotg_hs_pins_a>;
 	status = "okay";
 };
 
