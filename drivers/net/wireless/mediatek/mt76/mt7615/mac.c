@@ -378,7 +378,7 @@ static int mt7615_mac_fill_rx(struct mt7615_dev *dev, struct sk_buff *skb)
 		switch (FIELD_GET(MT_RXV1_TX_MODE, rxdg0)) {
 		case MT_PHY_TYPE_CCK:
 			cck = true;
-			/* fall through */
+			fallthrough;
 		case MT_PHY_TYPE_OFDM:
 			i = mt76_get_rate(&dev->mt76, sband, i, cck);
 			break;
@@ -688,7 +688,7 @@ mt7615_txp_skb_unmap_fw(struct mt76_dev *dev, struct mt7615_fw_txp *txp)
 {
 	int i;
 
-	for (i = 1; i < txp->nbuf; i++)
+	for (i = 0; i < txp->nbuf; i++)
 		dma_unmap_single(dev->dev, le32_to_cpu(txp->buf[i]),
 				 le16_to_cpu(txp->len[i]), DMA_TO_DEVICE);
 }
@@ -1046,15 +1046,17 @@ int mt7615_mac_wtbl_update_key(struct mt7615_dev *dev,
 	if (cmd == SET_KEY) {
 		if (cipher == MT_CIPHER_TKIP) {
 			/* Rx/Tx MIC keys are swapped */
+			memcpy(data, key, 16);
 			memcpy(data + 16, key + 24, 8);
 			memcpy(data + 24, key + 16, 8);
+		} else {
+			if (cipher != MT_CIPHER_BIP_CMAC_128 && wcid->cipher)
+				memmove(data + 16, data, 16);
+			if (cipher != MT_CIPHER_BIP_CMAC_128 || !wcid->cipher)
+				memcpy(data, key, keylen);
+			else if (cipher == MT_CIPHER_BIP_CMAC_128)
+				memcpy(data + 16, key, 16);
 		}
-		if (cipher != MT_CIPHER_BIP_CMAC_128 && wcid->cipher)
-			memmove(data + 16, data, 16);
-		if (cipher != MT_CIPHER_BIP_CMAC_128 || !wcid->cipher)
-			memcpy(data, key, keylen);
-		else if (cipher == MT_CIPHER_BIP_CMAC_128)
-			memcpy(data + 16, key, 16);
 	} else {
 		if (wcid->cipher & ~BIT(cipher)) {
 			if (cipher != MT_CIPHER_BIP_CMAC_128)
@@ -1271,7 +1273,7 @@ out:
 	switch (FIELD_GET(MT_TX_RATE_MODE, final_rate)) {
 	case MT_PHY_TYPE_CCK:
 		cck = true;
-		/* fall through */
+		fallthrough;
 	case MT_PHY_TYPE_OFDM:
 		mphy = &dev->mphy;
 		if (sta->wcid.ext_phy && dev->mt76.phy2)
@@ -1400,6 +1402,9 @@ mt7615_mac_tx_free_token(struct mt7615_dev *dev, u16 token)
 {
 	struct mt76_dev *mdev = &dev->mt76;
 	struct mt76_txwi_cache *txwi;
+	__le32 *txwi_data;
+	u32 val;
+	u8 wcid;
 
 	trace_mac_tx_free(dev, token);
 
@@ -1410,9 +1415,13 @@ mt7615_mac_tx_free_token(struct mt7615_dev *dev, u16 token)
 	if (!txwi)
 		return;
 
+	txwi_data = (__le32 *)mt76_get_txwi_ptr(mdev, txwi);
+	val = le32_to_cpu(txwi_data[1]);
+	wcid = FIELD_GET(MT_TXD1_WLAN_IDX, val);
+
 	mt7615_txp_skb_unmap(mdev, txwi);
 	if (txwi->skb) {
-		mt76_tx_complete_skb(mdev, txwi->skb);
+		mt76_tx_complete_skb(mdev, wcid, txwi->skb);
 		txwi->skb = NULL;
 	}
 
@@ -1423,6 +1432,14 @@ static void mt7615_mac_tx_free(struct mt7615_dev *dev, struct sk_buff *skb)
 {
 	struct mt7615_tx_free *free = (struct mt7615_tx_free *)skb->data;
 	u8 i, count;
+
+	mt76_queue_tx_cleanup(dev, MT_TXQ_PSD, false);
+	if (is_mt7615(&dev->mt76)) {
+		mt76_queue_tx_cleanup(dev, MT_TXQ_BE, false);
+	} else {
+		for (i = 0; i < IEEE80211_NUM_ACS; i++)
+			mt76_queue_tx_cleanup(dev, i, false);
+	}
 
 	count = FIELD_GET(MT_TX_FREE_MSDU_ID_CNT, le16_to_cpu(free->ctrl));
 	if (is_mt7615(&dev->mt76)) {
@@ -1439,11 +1456,15 @@ static void mt7615_mac_tx_free(struct mt7615_dev *dev, struct sk_buff *skb)
 
 	dev_kfree_skb(skb);
 
+	if (test_bit(MT76_STATE_PM, &dev->phy.mt76->state))
+		return;
+
 	rcu_read_lock();
 	mt7615_mac_sta_poll(dev);
 	rcu_read_unlock();
 
-	tasklet_schedule(&dev->mt76.tx_tasklet);
+	mt7615_pm_power_save_sched(dev);
+	mt76_worker_schedule(&dev->mt76.tx_worker);
 }
 
 void mt7615_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
@@ -1478,7 +1499,7 @@ void mt7615_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
 			mt76_rx(&dev->mt76, q, skb);
 			return;
 		}
-		/* fall through */
+		fallthrough;
 	default:
 		dev_kfree_skb(skb);
 		break;
@@ -1796,10 +1817,8 @@ mt7615_mac_update_mib_stats(struct mt7615_phy *phy)
 	int i, aggr;
 	u32 val, val2;
 
-	memset(mib, 0, sizeof(*mib));
-
-	mib->fcs_err_cnt = mt76_get_field(dev, MT_MIB_SDR3(ext_phy),
-					  MT_MIB_SDR3_FCS_ERR_MASK);
+	mib->fcs_err_cnt += mt76_get_field(dev, MT_MIB_SDR3(ext_phy),
+					   MT_MIB_SDR3_FCS_ERR_MASK);
 
 	val = mt76_get_field(dev, MT_MIB_SDR14(ext_phy),
 			     MT_MIB_AMPDU_MPDU_COUNT);
@@ -1812,24 +1831,16 @@ mt7615_mac_update_mib_stats(struct mt7615_phy *phy)
 	aggr = ext_phy ? ARRAY_SIZE(dev->mt76.aggr_stats) / 2 : 0;
 	for (i = 0; i < 4; i++) {
 		val = mt76_rr(dev, MT_MIB_MB_SDR1(ext_phy, i));
-
-		val2 = FIELD_GET(MT_MIB_ACK_FAIL_COUNT_MASK, val);
-		if (val2 > mib->ack_fail_cnt)
-			mib->ack_fail_cnt = val2;
-
-		val2 = FIELD_GET(MT_MIB_BA_MISS_COUNT_MASK, val);
-		if (val2 > mib->ba_miss_cnt)
-			mib->ba_miss_cnt = val2;
+		mib->ba_miss_cnt += FIELD_GET(MT_MIB_BA_MISS_COUNT_MASK, val);
+		mib->ack_fail_cnt += FIELD_GET(MT_MIB_ACK_FAIL_COUNT_MASK,
+					       val);
 
 		val = mt76_rr(dev, MT_MIB_MB_SDR0(ext_phy, i));
-		val2 = FIELD_GET(MT_MIB_RTS_RETRIES_COUNT_MASK, val);
-		if (val2 > mib->rts_retries_cnt) {
-			mib->rts_cnt = FIELD_GET(MT_MIB_RTS_COUNT_MASK, val);
-			mib->rts_retries_cnt = val2;
-		}
+		mib->rts_cnt += FIELD_GET(MT_MIB_RTS_COUNT_MASK, val);
+		mib->rts_retries_cnt += FIELD_GET(MT_MIB_RTS_RETRIES_COUNT_MASK,
+						  val);
 
 		val = mt76_rr(dev, MT_TX_AGG_CNT(ext_phy, i));
-
 		dev->mt76.aggr_stats[aggr++] += val & 0xffff;
 		dev->mt76.aggr_stats[aggr++] += val >> 16;
 	}
@@ -1869,7 +1880,7 @@ void mt7615_pm_wake_work(struct work_struct *work)
 	}
 	spin_unlock_bh(&dev->pm.txq_lock);
 
-	tasklet_schedule(&dev->mt76.tx_tasklet);
+	mt76_worker_schedule(&dev->mt76.tx_worker);
 
 out:
 	ieee80211_wake_queues(mphy->hw);
@@ -2077,6 +2088,27 @@ void mt7615_dma_reset(struct mt7615_dev *dev)
 }
 EXPORT_SYMBOL_GPL(mt7615_dma_reset);
 
+void mt7615_tx_token_put(struct mt7615_dev *dev)
+{
+	struct mt76_txwi_cache *txwi;
+	int id;
+
+	spin_lock_bh(&dev->token_lock);
+	idr_for_each_entry(&dev->token, txwi, id) {
+		mt7615_txp_skb_unmap(&dev->mt76, txwi);
+		if (txwi->skb) {
+			struct ieee80211_hw *hw;
+
+			hw = mt76_tx_status_get_hw(&dev->mt76, txwi->skb);
+			ieee80211_free_txskb(hw, txwi->skb);
+		}
+		mt76_put_txwi(&dev->mt76, txwi);
+	}
+	spin_unlock_bh(&dev->token_lock);
+	idr_destroy(&dev->token);
+}
+EXPORT_SYMBOL_GPL(mt7615_tx_token_put);
+
 void mt7615_mac_reset_work(struct work_struct *work)
 {
 	struct mt7615_phy *phy2;
@@ -2111,7 +2143,7 @@ void mt7615_mac_reset_work(struct work_struct *work)
 	if (ext_phy)
 		mt76_txq_schedule_all(ext_phy);
 
-	tasklet_disable(&dev->mt76.tx_tasklet);
+	mt76_worker_disable(&dev->mt76.tx_worker);
 	napi_disable(&dev->mt76.napi[0]);
 	napi_disable(&dev->mt76.napi[1]);
 	napi_disable(&dev->mt76.tx_napi);
@@ -2119,6 +2151,9 @@ void mt7615_mac_reset_work(struct work_struct *work)
 	mt7615_mutex_acquire(dev);
 
 	mt76_wr(dev, MT_MCU_INT_EVENT, MT_MCU_INT_EVENT_PDMA_STOPPED);
+
+	mt7615_tx_token_put(dev);
+	idr_init(&dev->token);
 
 	if (mt7615_wait_reset_state(dev, MT_MCU_CMD_RESET_DONE)) {
 		mt7615_dma_reset(dev);
@@ -2132,7 +2167,7 @@ void mt7615_mac_reset_work(struct work_struct *work)
 	clear_bit(MT76_MCU_RESET, &dev->mphy.state);
 	clear_bit(MT76_RESET, &dev->mphy.state);
 
-	tasklet_enable(&dev->mt76.tx_tasklet);
+	mt76_worker_enable(&dev->mt76.tx_worker);
 	napi_enable(&dev->mt76.tx_napi);
 	napi_schedule(&dev->mt76.tx_napi);
 

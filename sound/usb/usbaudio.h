@@ -27,6 +27,7 @@ struct snd_usb_audio {
 	struct snd_card *card;
 	struct usb_interface *intf[MAX_CARD_INTERFACES];
 	u32 usb_id;
+	uint16_t quirk_type;
 	struct mutex mutex;
 	unsigned int system_suspend;
 	atomic_t active;
@@ -61,6 +62,8 @@ struct snd_usb_audio {
 	struct media_device *media_dev;
 	struct media_intf_devnode *ctl_intf_media_devnode;
 };
+
+#define USB_AUDIO_IFACE_UNUSED	((void *)-1L)
 
 #define usb_audio_err(chip, fmt, args...) \
 	dev_err(&(chip)->dev->dev, fmt, ##args)
@@ -110,7 +113,6 @@ enum quirk_type {
 struct snd_usb_audio_quirk {
 	const char *vendor_name;
 	const char *product_name;
-	const char *profile_name;	/* override the card->longname */
 	int16_t ifnum;
 	uint16_t type;
 	bool shares_media_device;

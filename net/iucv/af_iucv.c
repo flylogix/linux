@@ -588,11 +588,11 @@ static int iucv_sock_bind(struct socket *sock, struct sockaddr *addr,
 			  int addr_len)
 {
 	struct sockaddr_iucv *sa = (struct sockaddr_iucv *) addr;
+	char uid[sizeof(sa->siucv_user_id)];
 	struct sock *sk = sock->sk;
 	struct iucv_sock *iucv;
 	int err = 0;
 	struct net_device *dev;
-	char uid[9];
 
 	/* Verify the input sockaddr */
 	if (addr_len < sizeof(struct sockaddr_iucv) ||
@@ -2036,7 +2036,6 @@ static int afiucv_hs_rcv(struct sk_buff *skb, struct net_device *dev,
 	char nullstring[8];
 
 	if (!pskb_may_pull(skb, sizeof(*trans_hdr))) {
-		WARN_ONCE(1, "AF_IUCV failed to receive skb, len=%u", skb->len);
 		kfree_skb(skb);
 		return NET_RX_SUCCESS;
 	}

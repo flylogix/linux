@@ -906,7 +906,7 @@ static int m88ds3103_set_frontend(struct dvb_frontend *fe)
 			if (ret)
 				goto err;
 		}
-		/* fall through */
+		fallthrough;
 	default:
 		u16tmp = DIV_ROUND_UP(target_mclk, dev->cfg->ts_clk);
 		u8tmp1 = u16tmp / 2 - 1;
@@ -1904,8 +1904,8 @@ static int m88ds3103_probe(struct i2c_client *client,
 
 		dev->dt_client = i2c_new_dummy_device(client->adapter,
 						      dev->dt_addr);
-		if (!dev->dt_client) {
-			ret = -ENODEV;
+		if (IS_ERR(dev->dt_client)) {
+			ret = PTR_ERR(dev->dt_client);
 			goto err_kfree;
 		}
 	}

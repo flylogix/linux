@@ -268,7 +268,7 @@ static struct feature_property {
 };
 
 #if defined(CONFIG_44x) && defined(CONFIG_PPC_FPU)
-static inline void identical_pvr_fixup(unsigned long node)
+static __init void identical_pvr_fixup(unsigned long node)
 {
 	unsigned int pvr;
 	const char *model = of_get_flat_dt_prop(node, "model", NULL);
@@ -775,6 +775,11 @@ void __init early_init_devtree(void *params)
 	/* Ensure that total memory size is page-aligned. */
 	limit = ALIGN(memory_limit ?: memblock_phys_mem_size(), PAGE_SIZE);
 	memblock_enforce_memory_limit(limit);
+
+#if defined(CONFIG_PPC_BOOK3S_64) && defined(CONFIG_PPC_4K_PAGES)
+	if (!early_radix_enabled())
+		memblock_cap_memory_range(0, 1UL << (H_MAX_PHYSMEM_BITS));
+#endif
 
 	memblock_allow_resize();
 	memblock_dump_all();

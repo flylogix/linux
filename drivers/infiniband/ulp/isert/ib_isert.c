@@ -28,6 +28,18 @@ static int isert_debug_level;
 module_param_named(debug_level, isert_debug_level, int, 0644);
 MODULE_PARM_DESC(debug_level, "Enable debug tracing if > 0 (default:0)");
 
+static int isert_sg_tablesize_set(const char *val,
+				  const struct kernel_param *kp);
+static const struct kernel_param_ops sg_tablesize_ops = {
+	.set = isert_sg_tablesize_set,
+	.get = param_get_int,
+};
+
+static int isert_sg_tablesize = ISCSI_ISER_DEF_SG_TABLESIZE;
+module_param_cb(sg_tablesize, &sg_tablesize_ops, &isert_sg_tablesize, 0644);
+MODULE_PARM_DESC(sg_tablesize,
+		 "Number of gather/scatter entries in a single scsi command, should >= 128 (default: 256, max: 4096)");
+
 static DEFINE_MUTEX(device_list_mutex);
 static LIST_HEAD(device_list);
 static struct workqueue_struct *isert_comp_wq;
@@ -46,6 +58,19 @@ static void isert_recv_done(struct ib_cq *cq, struct ib_wc *wc);
 static void isert_send_done(struct ib_cq *cq, struct ib_wc *wc);
 static void isert_login_recv_done(struct ib_cq *cq, struct ib_wc *wc);
 static void isert_login_send_done(struct ib_cq *cq, struct ib_wc *wc);
+
+static int isert_sg_tablesize_set(const char *val, const struct kernel_param *kp)
+{
+	int n = 0, ret;
+
+	ret = kstrtoint(val, 10, &n);
+	if (ret != 0 || n < ISCSI_ISER_MIN_SG_TABLESIZE ||
+	    n > ISCSI_ISER_MAX_SG_TABLESIZE)
+		return -EINVAL;
+
+	return param_set_int(val, kp);
+}
+
 
 static inline bool
 isert_prot_cmd(struct isert_conn *conn, struct se_cmd *cmd)
@@ -101,7 +126,7 @@ isert_create_qp(struct isert_conn *isert_conn,
 	attr.cap.max_send_wr = ISERT_QP_MAX_REQ_DTOS + 1;
 	attr.cap.max_recv_wr = ISERT_QP_MAX_RECV_DTOS + 1;
 	factor = rdma_rw_mr_factor(device->ib_device, cma_id->port_num,
-				   ISCSI_ISER_MAX_SG_TABLESIZE);
+				   isert_sg_tablesize);
 	attr.cap.max_rdma_ctxs = ISCSI_DEF_XMIT_CMDS_MAX * factor;
 	attr.cap.max_send_sge = device->ib_device->attrs.max_send_sge;
 	attr.cap.max_recv_sge = 1;
@@ -413,23 +438,23 @@ isert_connect_request(struct rdma_cm_id *cma_id, struct rdma_cm_event *event)
 	isert_init_conn(isert_conn);
 	isert_conn->cm_id = cma_id;
 
-	ret = isert_alloc_login_buf(isert_conn, cma_id->device);
-	if (ret)
-		goto out;
-
 	device = isert_device_get(cma_id);
 	if (IS_ERR(device)) {
 		ret = PTR_ERR(device);
-		goto out_rsp_dma_map;
+		goto out;
 	}
 	isert_conn->device = device;
+
+	ret = isert_alloc_login_buf(isert_conn, cma_id->device);
+	if (ret)
+		goto out_conn_dev;
 
 	isert_set_nego_params(isert_conn, &event->param.conn);
 
 	isert_conn->qp = isert_create_qp(isert_conn, cma_id);
 	if (IS_ERR(isert_conn->qp)) {
 		ret = PTR_ERR(isert_conn->qp);
-		goto out_conn_dev;
+		goto out_rsp_dma_map;
 	}
 
 	ret = isert_login_post_recv(isert_conn);
@@ -448,10 +473,10 @@ isert_connect_request(struct rdma_cm_id *cma_id, struct rdma_cm_event *event)
 
 out_destroy_qp:
 	isert_destroy_qp(isert_conn);
-out_conn_dev:
-	isert_device_put(device);
 out_rsp_dma_map:
 	isert_free_login_buf(isert_conn);
+out_conn_dev:
+	isert_device_put(device);
 out:
 	kfree(isert_conn);
 	rdma_reject(cma_id, NULL, 0, IB_CM_REJ_CONSUMER_DEFINED);
@@ -1141,12 +1166,7 @@ isert_handle_iscsi_dataout(struct isert_conn *isert_conn,
 	 * multiple data-outs on the same command can arrive -
 	 * so post the buffer before hand
 	 */
-	rc = isert_post_recv(isert_conn, rx_desc);
-	if (rc) {
-		isert_err("ib_post_recv failed with %d\n", rc);
-		return rc;
-	}
-	return 0;
+	return isert_post_recv(isert_conn, rx_desc);
 }
 
 static int
@@ -1723,10 +1743,8 @@ isert_post_response(struct isert_conn *isert_conn, struct isert_cmd *isert_cmd)
 	int ret;
 
 	ret = isert_post_recv(isert_conn, isert_cmd->rx_desc);
-	if (ret) {
-		isert_err("ib_post_recv failed with %d\n", ret);
+	if (ret)
 		return ret;
-	}
 
 	ret = ib_post_send(isert_conn->qp, &isert_cmd->tx_desc.send_wr, NULL);
 	if (ret) {
@@ -2098,10 +2116,8 @@ isert_put_datain(struct iscsi_conn *conn, struct iscsi_cmd *cmd)
 				   &isert_cmd->tx_desc.send_wr);
 
 		rc = isert_post_recv(isert_conn, isert_cmd->rx_desc);
-		if (rc) {
-			isert_err("ib_post_recv failed with %d\n", rc);
+		if (rc)
 			return rc;
-		}
 
 		chain_wr = &isert_cmd->tx_desc.send_wr;
 	}

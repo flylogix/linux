@@ -741,12 +741,12 @@ mt7615_mcu_add_beacon_offload(struct mt7615_dev *dev,
 	memcpy(req.pkt + MT_TXD_SIZE, skb->data, skb->len);
 	req.pkt_len = cpu_to_le16(MT_TXD_SIZE + skb->len);
 	req.tim_ie_pos = cpu_to_le16(MT_TXD_SIZE + offs.tim_offset);
-	if (offs.csa_counter_offs[0]) {
+	if (offs.cntdwn_counter_offs[0]) {
 		u16 csa_offs;
 
-		csa_offs = MT_TXD_SIZE + offs.csa_counter_offs[0] - 4;
+		csa_offs = MT_TXD_SIZE + offs.cntdwn_counter_offs[0] - 4;
 		req.csa_ie_pos = cpu_to_le16(csa_offs);
-		req.csa_cnt = skb->data[offs.csa_counter_offs[0]];
+		req.csa_cnt = skb->data[offs.cntdwn_counter_offs[0]];
 	}
 	dev_kfree_skb(skb);
 
@@ -1197,7 +1197,7 @@ mt7615_mcu_wtbl_ht_tlv(struct sk_buff *skb, struct ieee80211_sta *sta,
 		tlv = mt7615_mcu_add_nested_tlv(skb, WTBL_HT, sizeof(*ht),
 						wtbl_tlv, sta_wtbl);
 		ht = (struct wtbl_ht *)tlv;
-		ht->ldpc = sta->ht_cap.cap & IEEE80211_HT_CAP_LDPC_CODING;
+		ht->ldpc = !!(sta->ht_cap.cap & IEEE80211_HT_CAP_LDPC_CODING);
 		ht->af = sta->ht_cap.ampdu_factor;
 		ht->mm = sta->ht_cap.ampdu_density;
 		ht->ht = 1;
@@ -1215,7 +1215,7 @@ mt7615_mcu_wtbl_ht_tlv(struct sk_buff *skb, struct ieee80211_sta *sta,
 		tlv = mt7615_mcu_add_nested_tlv(skb, WTBL_VHT, sizeof(*vht),
 						wtbl_tlv, sta_wtbl);
 		vht = (struct wtbl_vht *)tlv;
-		vht->ldpc = sta->vht_cap.cap & IEEE80211_VHT_CAP_RXLDPC,
+		vht->ldpc = !!(sta->vht_cap.cap & IEEE80211_VHT_CAP_RXLDPC);
 		vht->vht = 1;
 
 		af = (sta->vht_cap.cap &
@@ -1808,10 +1808,10 @@ mt7615_mcu_uni_add_beacon_offload(struct mt7615_dev *dev,
 	req.beacon_tlv.pkt_len = cpu_to_le16(MT_TXD_SIZE + skb->len);
 	req.beacon_tlv.tim_ie_pos = cpu_to_le16(MT_TXD_SIZE + offs.tim_offset);
 
-	if (offs.csa_counter_offs[0]) {
+	if (offs.cntdwn_counter_offs[0]) {
 		u16 csa_offs;
 
-		csa_offs = MT_TXD_SIZE + offs.csa_counter_offs[0] - 4;
+		csa_offs = MT_TXD_SIZE + offs.cntdwn_counter_offs[0] - 4;
 		req.beacon_tlv.csa_ie_pos = cpu_to_le16(csa_offs);
 	}
 	dev_kfree_skb(skb);
@@ -2718,11 +2718,11 @@ int mt7615_mcu_rdd_cmd(struct mt7615_dev *dev,
 int mt7615_mcu_set_fcc5_lpn(struct mt7615_dev *dev, int val)
 {
 	struct {
-		u16 tag;
-		u16 min_lpn;
+		__le16 tag;
+		__le16 min_lpn;
 	} req = {
-		.tag = 0x1,
-		.min_lpn = val,
+		.tag = cpu_to_le16(0x1),
+		.min_lpn = cpu_to_le16(val),
 	};
 
 	return __mt76_mcu_send_msg(&dev->mt76, MCU_EXT_CMD_SET_RDD_TH,
@@ -2733,13 +2733,26 @@ int mt7615_mcu_set_pulse_th(struct mt7615_dev *dev,
 			    const struct mt7615_dfs_pulse *pulse)
 {
 	struct {
-		u16 tag;
-		struct mt7615_dfs_pulse pulse;
+		__le16 tag;
+		__le32 max_width;	/* us */
+		__le32 max_pwr;		/* dbm */
+		__le32 min_pwr;		/* dbm */
+		__le32 min_stgr_pri;	/* us */
+		__le32 max_stgr_pri;	/* us */
+		__le32 min_cr_pri;	/* us */
+		__le32 max_cr_pri;	/* us */
 	} req = {
-		.tag = 0x3,
+		.tag = cpu_to_le16(0x3),
+#define __req_field(field) .field = cpu_to_le32(pulse->field)
+		__req_field(max_width),
+		__req_field(max_pwr),
+		__req_field(min_pwr),
+		__req_field(min_stgr_pri),
+		__req_field(max_stgr_pri),
+		__req_field(min_cr_pri),
+		__req_field(max_cr_pri),
+#undef  __req_field
 	};
-
-	memcpy(&req.pulse, pulse, sizeof(*pulse));
 
 	return __mt76_mcu_send_msg(&dev->mt76, MCU_EXT_CMD_SET_RDD_TH,
 				   &req, sizeof(req), true);
@@ -2749,15 +2762,44 @@ int mt7615_mcu_set_radar_th(struct mt7615_dev *dev, int index,
 			    const struct mt7615_dfs_pattern *pattern)
 {
 	struct {
-		u16 tag;
-		u16 radar_type;
-		struct mt7615_dfs_pattern pattern;
+		__le16 tag;
+		__le16 radar_type;
+		u8 enb;
+		u8 stgr;
+		u8 min_crpn;
+		u8 max_crpn;
+		u8 min_crpr;
+		u8 min_pw;
+		u8 max_pw;
+		__le32 min_pri;
+		__le32 max_pri;
+		u8 min_crbn;
+		u8 max_crbn;
+		u8 min_stgpn;
+		u8 max_stgpn;
+		u8 min_stgpr;
 	} req = {
-		.tag = 0x2,
-		.radar_type = index,
+		.tag = cpu_to_le16(0x2),
+		.radar_type = cpu_to_le16(index),
+#define __req_field_u8(field) .field = pattern->field
+#define __req_field_u32(field) .field = cpu_to_le32(pattern->field)
+		__req_field_u8(enb),
+		__req_field_u8(stgr),
+		__req_field_u8(min_crpn),
+		__req_field_u8(max_crpn),
+		__req_field_u8(min_crpr),
+		__req_field_u8(min_pw),
+		__req_field_u8(max_pw),
+		__req_field_u32(min_pri),
+		__req_field_u32(max_pri),
+		__req_field_u8(min_crbn),
+		__req_field_u8(max_crbn),
+		__req_field_u8(min_stgpn),
+		__req_field_u8(max_stgpn),
+		__req_field_u8(min_stgpr),
+#undef __req_field_u8
+#undef __req_field_u32
 	};
-
-	memcpy(&req.pattern, pattern, sizeof(*pattern));
 
 	return __mt76_mcu_send_msg(&dev->mt76, MCU_EXT_CMD_SET_RDD_TH,
 				   &req, sizeof(req), true);
@@ -2769,9 +2811,9 @@ int mt7615_mcu_rdd_send_pattern(struct mt7615_dev *dev)
 		u8 pulse_num;
 		u8 rsv[3];
 		struct {
-			u32 start_time;
-			u16 width;
-			s16 power;
+			__le32 start_time;
+			__le16 width;
+			__le16 power;
 		} pattern[32];
 	} req = {
 		.pulse_num = dev->radar_pattern.n_pulses,
@@ -2784,10 +2826,11 @@ int mt7615_mcu_rdd_send_pattern(struct mt7615_dev *dev)
 
 	/* TODO: add some noise here */
 	for (i = 0; i < dev->radar_pattern.n_pulses; i++) {
-		req.pattern[i].width = dev->radar_pattern.width;
-		req.pattern[i].power = dev->radar_pattern.power;
-		req.pattern[i].start_time = start_time +
-					    i * dev->radar_pattern.period;
+		u32 ts = start_time + i * dev->radar_pattern.period;
+
+		req.pattern[i].width = cpu_to_le16(dev->radar_pattern.width);
+		req.pattern[i].power = cpu_to_le16(dev->radar_pattern.power);
+		req.pattern[i].start_time = cpu_to_le32(ts);
 	}
 
 	return __mt76_mcu_send_msg(&dev->mt76, MCU_EXT_CMD_SET_RDD_PATTERN,
@@ -2868,14 +2911,6 @@ int mt7615_mcu_set_chan_info(struct mt7615_phy *phy, int cmd)
 		.rx_streams_mask = phy->chainmask,
 		.center_chan2 = ieee80211_frequency_to_channel(freq2),
 	};
-
-#ifdef CONFIG_NL80211_TESTMODE
-	if (dev->mt76.test.state == MT76_TM_STATE_TX_FRAMES &&
-	    dev->mt76.test.tx_antenna_mask) {
-		req.tx_streams = hweight8(dev->mt76.test.tx_antenna_mask);
-		req.rx_streams_mask = dev->mt76.test.tx_antenna_mask;
-	}
-#endif
 
 	if (dev->mt76.hw->conf.flags & IEEE80211_CONF_OFFCHANNEL)
 		req.switch_reason = CH_SWITCH_SCAN_BYPASS_DPD;
@@ -3301,7 +3336,7 @@ static int mt7615_dcoc_freq_idx(u16 freq, u8 bw)
 			freq = freq_bw40[idx];
 			break;
 		}
-		/* fall through */
+		fallthrough;
 	case NL80211_CHAN_WIDTH_40:
 		idx = mt7615_find_freq_idx(freq_bw40, ARRAY_SIZE(freq_bw40),
 					   freq);

@@ -53,7 +53,7 @@ kmmio_fault(struct pt_regs *regs, unsigned long addr)
  * 32-bit mode:
  *
  *   Sometimes AMD Athlon/Opteron CPUs report invalid exceptions on prefetch.
- *   Check that here and ignore it.
+ *   Check that here and ignore it.  This is AMD erratum #91.
  *
  * 64-bit mode:
  *
@@ -82,11 +82,7 @@ check_prefetch_opcode(struct pt_regs *regs, unsigned char *instr,
 #ifdef CONFIG_X86_64
 	case 0x40:
 		/*
-		 * In AMD64 long mode 0x40..0x4F are valid REX prefixes
-		 * Need to figure out under what instruction mode the
-		 * instruction was issued. Could check the LDT for lm,
-		 * but for now it's good enough to assume that long
-		 * mode only uses well known segments or kernel.
+		 * In 64-bit mode 0x40..0x4F are valid REX prefixes
 		 */
 		return (!user_mode(regs) || user_64bit_mode(regs));
 #endif
@@ -126,20 +122,31 @@ is_prefetch(struct pt_regs *regs, unsigned long error_code, unsigned long addr)
 	instr = (void *)convert_ip_to_linear(current, regs);
 	max_instr = instr + 15;
 
-	if (user_mode(regs) && instr >= (unsigned char *)TASK_SIZE_MAX)
-		return 0;
+	/*
+	 * This code has historically always bailed out if IP points to a
+	 * not-present page (e.g. due to a race).  No one has ever
+	 * complained about this.
+	 */
+	pagefault_disable();
 
 	while (instr < max_instr) {
 		unsigned char opcode;
 
-		if (get_kernel_nofault(opcode, instr))
-			break;
+		if (user_mode(regs)) {
+			if (get_user(opcode, instr))
+				break;
+		} else {
+			if (get_kernel_nofault(opcode, instr))
+				break;
+		}
 
 		instr++;
 
 		if (!check_prefetch_opcode(regs, instr, opcode, &prefetch))
 			break;
 	}
+
+	pagefault_enable();
 	return prefetch;
 }
 
@@ -1128,7 +1135,7 @@ access_error(unsigned long error_code, struct vm_area_struct *vma)
 	return 0;
 }
 
-static int fault_in_kernel_space(unsigned long address)
+bool fault_in_kernel_space(unsigned long address)
 {
 	/*
 	 * On 64-bit systems, the vsyscall page is at an address above
@@ -1446,11 +1453,14 @@ DEFINE_IDTENTRY_RAW_ERRORCODE(exc_page_fault)
 	prefetchw(&current->mm->mmap_lock);
 
 	/*
-	 * KVM has two types of events that are, logically, interrupts, but
-	 * are unfortunately delivered using the #PF vector.  These events are
-	 * "you just accessed valid memory, but the host doesn't have it right
-	 * now, so I'll put you to sleep if you continue" and "that memory
-	 * you tried to access earlier is available now."
+	 * KVM uses #PF vector to deliver 'page not present' events to guests
+	 * (asynchronous page fault mechanism). The event happens when a
+	 * userspace task is trying to access some valid (from guest's point of
+	 * view) memory which is not currently mapped by the host (e.g. the
+	 * memory is swapped out). Note, the corresponding "page ready" event
+	 * which is injected when the memory becomes available, is delived via
+	 * an interrupt mechanism and not a #PF exception
+	 * (see arch/x86/kernel/kvm.c: sysvec_kvm_asyncpf_interrupt()).
 	 *
 	 * We are relying on the interrupted context being sane (valid RSP,
 	 * relevant locks not held, etc.), which is fine as long as the

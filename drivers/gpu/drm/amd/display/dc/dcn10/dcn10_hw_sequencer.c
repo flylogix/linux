@@ -646,8 +646,13 @@ static void power_on_plane(
 	if (REG(DC_IP_REQUEST_CNTL)) {
 		REG_SET(DC_IP_REQUEST_CNTL, 0,
 				IP_REQUEST_EN, 1);
-		hws->funcs.dpp_pg_control(hws, plane_id, true);
-		hws->funcs.hubp_pg_control(hws, plane_id, true);
+
+		if (hws->funcs.dpp_pg_control)
+			hws->funcs.dpp_pg_control(hws, plane_id, true);
+
+		if (hws->funcs.hubp_pg_control)
+			hws->funcs.hubp_pg_control(hws, plane_id, true);
+
 		REG_SET(DC_IP_REQUEST_CNTL, 0,
 				IP_REQUEST_EN, 0);
 		DC_LOG_DEBUG(
@@ -1079,8 +1084,13 @@ void dcn10_plane_atomic_power_down(struct dc *dc,
 	if (REG(DC_IP_REQUEST_CNTL)) {
 		REG_SET(DC_IP_REQUEST_CNTL, 0,
 				IP_REQUEST_EN, 1);
-		hws->funcs.dpp_pg_control(hws, dpp->inst, false);
-		hws->funcs.hubp_pg_control(hws, hubp->inst, false);
+
+		if (hws->funcs.dpp_pg_control)
+			hws->funcs.dpp_pg_control(hws, dpp->inst, false);
+
+		if (hws->funcs.hubp_pg_control)
+			hws->funcs.hubp_pg_control(hws, hubp->inst, false);
+
 		dpp->funcs->dpp_reset(dpp);
 		REG_SET(DC_IP_REQUEST_CNTL, 0,
 				IP_REQUEST_EN, 0);
@@ -2377,14 +2387,6 @@ void dcn10_update_mpcc(struct dc *dc, struct pipe_ctx *pipe_ctx)
 				&blnd_cfg.black_color);
 	}
 
-	/*
-	 * The way 420 is packed, 2 channels carry Y component, 1 channel
-	 * alternate between Cb and Cr, so both channels need the pixel
-	 * value for Y
-	 */
-	if (pipe_ctx->stream->timing.pixel_encoding == PIXEL_ENCODING_YCBCR420)
-		blnd_cfg.black_color.color_r_cr = blnd_cfg.black_color.color_g_y;
-
 	if (per_pixel_alpha)
 		blnd_cfg.alpha_mode = MPCC_ALPHA_BLEND_MODE_PER_PIXEL_ALPHA;
 	else
@@ -2773,7 +2775,7 @@ bool dcn10_disconnect_pipes(
 		struct dc *dc,
 		struct dc_state *context)
 {
-		bool found_stream = false;
+		bool found_pipe = false;
 		int i, j;
 		struct dce_hwseq *hws = dc->hwseq;
 		struct dc_state *old_ctx = dc->current_state;
@@ -2813,26 +2815,28 @@ bool dcn10_disconnect_pipes(
 					old_ctx->res_ctx.pipe_ctx[i].top_pipe) {
 
 					/* Find the top pipe in the new ctx for the bottom pipe that we
-					 * want to remove by comparing the streams. If both pipes are being
-					 * disabled then do it in the regular pipe programming sequence
+					 * want to remove by comparing the streams and planes. If both
+					 * pipes are being disabled then do it in the regular pipe
+					 * programming sequence
 					 */
 					for (j = 0; j < dc->res_pool->pipe_count; j++) {
 						if (old_ctx->res_ctx.pipe_ctx[i].top_pipe->stream == context->res_ctx.pipe_ctx[j].stream &&
+							old_ctx->res_ctx.pipe_ctx[i].top_pipe->plane_state == context->res_ctx.pipe_ctx[j].plane_state &&
 							!context->res_ctx.pipe_ctx[j].top_pipe &&
 							!context->res_ctx.pipe_ctx[j].update_flags.bits.disable) {
-							found_stream = true;
+							found_pipe = true;
 							break;
 						}
 					}
 
 					// Disconnect if the top pipe lost it's pipe split
-					if (found_stream && !context->res_ctx.pipe_ctx[j].bottom_pipe) {
+					if (found_pipe && !context->res_ctx.pipe_ctx[j].bottom_pipe) {
 						hws->funcs.plane_atomic_disconnect(dc, &dc->current_state->res_ctx.pipe_ctx[i]);
 						DC_LOG_DC("Reset mpcc for pipe %d\n", dc->current_state->res_ctx.pipe_ctx[i].pipe_idx);
 						mpcc_disconnected = true;
 					}
 				}
-				found_stream = false;
+				found_pipe = false;
 			}
 		}
 

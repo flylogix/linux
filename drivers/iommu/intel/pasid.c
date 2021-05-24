@@ -27,7 +27,7 @@
 static DEFINE_SPINLOCK(pasid_lock);
 u32 intel_pasid_max_id = PASID_MAX;
 
-int vcmd_alloc_pasid(struct intel_iommu *iommu, unsigned int *pasid)
+int vcmd_alloc_pasid(struct intel_iommu *iommu, u32 *pasid)
 {
 	unsigned long flags;
 	u8 status_code;
@@ -58,7 +58,7 @@ int vcmd_alloc_pasid(struct intel_iommu *iommu, unsigned int *pasid)
 	return ret;
 }
 
-void vcmd_free_pasid(struct intel_iommu *iommu, unsigned int pasid)
+void vcmd_free_pasid(struct intel_iommu *iommu, u32 pasid)
 {
 	unsigned long flags;
 	u8 status_code;
@@ -146,7 +146,7 @@ int intel_pasid_alloc_table(struct device *dev)
 	struct pasid_table *pasid_table;
 	struct pasid_table_opaque data;
 	struct page *pages;
-	int max_pasid = 0;
+	u32 max_pasid = 0;
 	int ret, order;
 	int size;
 
@@ -168,7 +168,7 @@ int intel_pasid_alloc_table(struct device *dev)
 	INIT_LIST_HEAD(&pasid_table->dev);
 
 	if (info->pasid_supported)
-		max_pasid = min_t(int, pci_max_pasids(to_pci_dev(dev)),
+		max_pasid = min_t(u32, pci_max_pasids(to_pci_dev(dev)),
 				  intel_pasid_max_id);
 
 	size = max_pasid >> (PASID_PDE_SHIFT - 3);
@@ -242,7 +242,7 @@ int intel_pasid_get_dev_max_id(struct device *dev)
 	return info->pasid_table->max_pasid;
 }
 
-struct pasid_entry *intel_pasid_get_entry(struct device *dev, int pasid)
+struct pasid_entry *intel_pasid_get_entry(struct device *dev, u32 pasid)
 {
 	struct device_domain_info *info;
 	struct pasid_table *pasid_table;
@@ -251,8 +251,7 @@ struct pasid_entry *intel_pasid_get_entry(struct device *dev, int pasid)
 	int dir_index, index;
 
 	pasid_table = intel_pasid_get_table(dev);
-	if (WARN_ON(!pasid_table || pasid < 0 ||
-		    pasid >= intel_pasid_get_dev_max_id(dev)))
+	if (WARN_ON(!pasid_table || pasid >= intel_pasid_get_dev_max_id(dev)))
 		return NULL;
 
 	dir = pasid_table->table;
@@ -305,7 +304,7 @@ static inline void pasid_clear_entry_with_fpd(struct pasid_entry *pe)
 }
 
 static void
-intel_pasid_clear_entry(struct device *dev, int pasid, bool fault_ignore)
+intel_pasid_clear_entry(struct device *dev, u32 pasid, bool fault_ignore)
 {
 	struct pasid_entry *pe;
 
@@ -413,6 +412,16 @@ static inline void pasid_set_page_snoop(struct pasid_entry *pe, bool value)
 }
 
 /*
+ * Setup the Page Snoop (PGSNP) field (Bit 88) of a scalable mode
+ * PASID entry.
+ */
+static inline void
+pasid_set_pgsnp(struct pasid_entry *pe)
+{
+	pasid_set_bits(&pe->val[1], 1ULL << 24, 1ULL << 24);
+}
+
+/*
  * Setup the First Level Page table Pointer field (Bit 140~191)
  * of a scalable mode PASID entry.
  */
@@ -444,7 +453,7 @@ pasid_set_eafe(struct pasid_entry *pe)
 
 static void
 pasid_cache_invalidation_with_pasid(struct intel_iommu *iommu,
-				    u16 did, int pasid)
+				    u16 did, u32 pasid)
 {
 	struct qi_desc desc;
 
@@ -473,7 +482,7 @@ iotlb_invalidation_with_pasid(struct intel_iommu *iommu, u16 did, u32 pasid)
 
 static void
 devtlb_invalidation_with_pasid(struct intel_iommu *iommu,
-			       struct device *dev, int pasid)
+			       struct device *dev, u32 pasid)
 {
 	struct device_domain_info *info;
 	u16 sid, qdep, pfsid;
@@ -499,7 +508,7 @@ devtlb_invalidation_with_pasid(struct intel_iommu *iommu,
 }
 
 void intel_pasid_tear_down_entry(struct intel_iommu *iommu, struct device *dev,
-				 int pasid, bool fault_ignore)
+				 u32 pasid, bool fault_ignore)
 {
 	struct pasid_entry *pte;
 	u16 did;
@@ -524,7 +533,7 @@ void intel_pasid_tear_down_entry(struct intel_iommu *iommu, struct device *dev,
 
 static void pasid_flush_caches(struct intel_iommu *iommu,
 				struct pasid_entry *pte,
-				int pasid, u16 did)
+			       u32 pasid, u16 did)
 {
 	if (!ecap_coherent(iommu->ecap))
 		clflush_cache_range(pte, sizeof(*pte));
@@ -543,7 +552,7 @@ static void pasid_flush_caches(struct intel_iommu *iommu,
  */
 int intel_pasid_setup_first_level(struct intel_iommu *iommu,
 				  struct device *dev, pgd_t *pgd,
-				  int pasid, u16 did, int flags)
+				  u32 pasid, u16 did, int flags)
 {
 	struct pasid_entry *pte;
 
@@ -579,6 +588,9 @@ int intel_pasid_setup_first_level(struct intel_iommu *iommu,
 			return -EINVAL;
 		}
 	}
+
+	if (flags & PASID_FLAG_PAGE_SNOOP)
+		pasid_set_pgsnp(pte);
 
 	pasid_set_domain_id(pte, did);
 	pasid_set_address_width(pte, iommu->agaw);
@@ -616,7 +628,7 @@ static inline int iommu_skip_agaw(struct dmar_domain *domain,
  */
 int intel_pasid_setup_second_level(struct intel_iommu *iommu,
 				   struct dmar_domain *domain,
-				   struct device *dev, int pasid)
+				   struct device *dev, u32 pasid)
 {
 	struct pasid_entry *pte;
 	struct dma_pte *pgd;
@@ -658,6 +670,9 @@ int intel_pasid_setup_second_level(struct intel_iommu *iommu,
 	pasid_set_fault_enable(pte);
 	pasid_set_page_snoop(pte, !!ecap_smpwc(iommu->ecap));
 
+	if (domain->domain.type == IOMMU_DOMAIN_UNMANAGED)
+		pasid_set_pgsnp(pte);
+
 	/*
 	 * Since it is a second level only translation setup, we should
 	 * set SRE bit as well (addresses are expected to be GPAs).
@@ -674,7 +689,7 @@ int intel_pasid_setup_second_level(struct intel_iommu *iommu,
  */
 int intel_pasid_setup_pass_through(struct intel_iommu *iommu,
 				   struct dmar_domain *domain,
-				   struct device *dev, int pasid)
+				   struct device *dev, u32 pasid)
 {
 	u16 did = FLPT_DEFAULT_DID;
 	struct pasid_entry *pte;
@@ -760,7 +775,7 @@ intel_pasid_setup_bind_data(struct intel_iommu *iommu, struct pasid_entry *pte,
  * @addr_width: Address width of the first level (guest)
  */
 int intel_pasid_setup_nested(struct intel_iommu *iommu, struct device *dev,
-			     pgd_t *gpgd, int pasid,
+			     pgd_t *gpgd, u32 pasid,
 			     struct iommu_gpasid_bind_data_vtd *pasid_data,
 			     struct dmar_domain *domain, int addr_width)
 {

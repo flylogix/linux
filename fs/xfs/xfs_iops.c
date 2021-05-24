@@ -237,7 +237,7 @@ xfs_vn_create(
 	umode_t		mode,
 	bool		flags)
 {
-	return xfs_vn_mknod(dir, dentry, mode, 0);
+	return xfs_generic_create(dir, dentry, mode, 0, false);
 }
 
 STATIC int
@@ -246,7 +246,7 @@ xfs_vn_mkdir(
 	struct dentry	*dentry,
 	umode_t		mode)
 {
-	return xfs_vn_mknod(dir, dentry, mode|S_IFDIR, 0);
+	return xfs_generic_create(dir, dentry, mode | S_IFDIR, 0, false);
 }
 
 STATIC struct dentry *
@@ -865,7 +865,7 @@ xfs_setattr_size(
 	ASSERT(xfs_isilocked(ip, XFS_MMAPLOCK_EXCL));
 	ASSERT(S_ISREG(inode->i_mode));
 	ASSERT((iattr->ia_valid & (ATTR_UID|ATTR_GID|ATTR_ATIME|ATTR_ATIME_SET|
-		ATTR_MTIME_SET|ATTR_KILL_PRIV|ATTR_TIMES_SET)) == 0);
+		ATTR_MTIME_SET|ATTR_TIMES_SET)) == 0);
 
 	oldsize = inode->i_size;
 	newsize = iattr->ia_size;

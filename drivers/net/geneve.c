@@ -217,7 +217,6 @@ static void geneve_rx(struct geneve_dev *geneve, struct geneve_sock *gs,
 {
 	struct genevehdr *gnvh = geneve_hdr(skb);
 	struct metadata_dst *tun_dst = NULL;
-	struct pcpu_sw_netstats *stats;
 	unsigned int len;
 	int err = 0;
 	void *oiph;
@@ -295,13 +294,9 @@ static void geneve_rx(struct geneve_dev *geneve, struct geneve_sock *gs,
 
 	len = skb->len;
 	err = gro_cells_receive(&geneve->gro_cells, skb);
-	if (likely(err == NET_RX_SUCCESS)) {
-		stats = this_cpu_ptr(geneve->dev->tstats);
-		u64_stats_update_begin(&stats->syncp);
-		stats->rx_packets++;
-		stats->rx_bytes += len;
-		u64_stats_update_end(&stats->syncp);
-	}
+	if (likely(err == NET_RX_SUCCESS))
+		dev_sw_netstats_rx_add(geneve->dev, len);
+
 	return;
 drop:
 	/* Consume bad packet */
@@ -895,6 +890,9 @@ static int geneve_xmit_skb(struct sk_buff *skb, struct net_device *dev,
 	__be16 sport;
 	int err;
 
+	if (!pskb_inet_may_pull(skb))
+		return -EINVAL;
+
 	sport = udp_flow_src_port(geneve->net, skb, 1, USHRT_MAX, true);
 	rt = geneve_get_v4_rt(skb, dev, gs4, &fl4, info,
 			      geneve->cfg.info.key.tp_dst, sport);
@@ -912,8 +910,16 @@ static int geneve_xmit_skb(struct sk_buff *skb, struct net_device *dev,
 
 		info = skb_tunnel_info(skb);
 		if (info) {
-			info->key.u.ipv4.dst = fl4.saddr;
-			info->key.u.ipv4.src = fl4.daddr;
+			struct ip_tunnel_info *unclone;
+
+			unclone = skb_tunnel_info_unclone(skb);
+			if (unlikely(!unclone)) {
+				dst_release(&rt->dst);
+				return -ENOMEM;
+			}
+
+			unclone->key.u.ipv4.dst = fl4.saddr;
+			unclone->key.u.ipv4.src = fl4.daddr;
 		}
 
 		if (!pskb_may_pull(skb, ETH_HLEN)) {
@@ -981,6 +987,9 @@ static int geneve6_xmit_skb(struct sk_buff *skb, struct net_device *dev,
 	__be16 sport;
 	int err;
 
+	if (!pskb_inet_may_pull(skb))
+		return -EINVAL;
+
 	sport = udp_flow_src_port(geneve->net, skb, 1, USHRT_MAX, true);
 	dst = geneve_get_v6_dst(skb, dev, gs6, &fl6, info,
 				geneve->cfg.info.key.tp_dst, sport);
@@ -997,8 +1006,16 @@ static int geneve6_xmit_skb(struct sk_buff *skb, struct net_device *dev,
 		struct ip_tunnel_info *info = skb_tunnel_info(skb);
 
 		if (info) {
-			info->key.u.ipv6.dst = fl6.saddr;
-			info->key.u.ipv6.src = fl6.daddr;
+			struct ip_tunnel_info *unclone;
+
+			unclone = skb_tunnel_info_unclone(skb);
+			if (unlikely(!unclone)) {
+				dst_release(dst);
+				return -ENOMEM;
+			}
+
+			unclone->key.u.ipv6.dst = fl6.saddr;
+			unclone->key.u.ipv6.src = fl6.daddr;
 		}
 
 		if (!pskb_may_pull(skb, ETH_HLEN)) {

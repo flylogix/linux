@@ -43,7 +43,7 @@ static DEFINE_IDA(amdgpu_pasid_ida);
 /* Helper to free pasid from a fence callback */
 struct amdgpu_pasid_cb {
 	struct dma_fence_cb cb;
-	unsigned int pasid;
+	u32 pasid;
 };
 
 /**
@@ -79,7 +79,7 @@ int amdgpu_pasid_alloc(unsigned int bits)
  * amdgpu_pasid_free - Free a PASID
  * @pasid: PASID to free
  */
-void amdgpu_pasid_free(unsigned int pasid)
+void amdgpu_pasid_free(u32 pasid)
 {
 	trace_amdgpu_pasid_freed(pasid);
 	ida_simple_remove(&amdgpu_pasid_ida, pasid);
@@ -105,7 +105,7 @@ static void amdgpu_pasid_free_cb(struct dma_fence *fence,
  * Free the pasid only after all the fences in resv are signaled.
  */
 void amdgpu_pasid_free_delayed(struct dma_resv *resv,
-			       unsigned int pasid)
+			       u32 pasid)
 {
 	struct dma_fence *fence, **fences;
 	struct amdgpu_pasid_cb *cb;
@@ -215,7 +215,11 @@ static int amdgpu_vmid_grab_idle(struct amdgpu_vm *vm,
 	/* Check if we have an idle VMID */
 	i = 0;
 	list_for_each_entry((*idle), &id_mgr->ids_lru, list) {
-		fences[i] = amdgpu_sync_peek_fence(&(*idle)->active, ring);
+		/* Don't use per engine and per process VMID at the same time */
+		struct amdgpu_ring *r = adev->vm_manager.concurrent_flush ?
+			NULL : ring;
+
+		fences[i] = amdgpu_sync_peek_fence(&(*idle)->active, r);
 		if (!fences[i])
 			break;
 		++i;
@@ -280,7 +284,7 @@ static int amdgpu_vmid_grab_reserved(struct amdgpu_vm *vm,
 	if (updates && (*id)->flushed_updates &&
 	    updates->context == (*id)->flushed_updates->context &&
 	    !dma_fence_is_later(updates, (*id)->flushed_updates))
-	    updates = NULL;
+		updates = NULL;
 
 	if ((*id)->owner != vm->immediate.fence_context ||
 	    job->vm_pd_addr != (*id)->pd_gpu_addr ||
@@ -288,6 +292,10 @@ static int amdgpu_vmid_grab_reserved(struct amdgpu_vm *vm,
 	    ((*id)->last_flush->context != fence_context &&
 	     !dma_fence_is_signaled((*id)->last_flush))) {
 		struct dma_fence *tmp;
+
+		/* Don't use per engine and per process VMID at the same time */
+		if (adev->vm_manager.concurrent_flush)
+			ring = NULL;
 
 		/* to prevent one context starved by another context */
 		(*id)->pd_gpu_addr = 0;
@@ -364,12 +372,7 @@ static int amdgpu_vmid_grab_used(struct amdgpu_vm *vm,
 		if (updates && (!flushed || dma_fence_is_later(updates, flushed)))
 			needs_flush = true;
 
-		/* Concurrent flushes are only possible starting with Vega10 and
-		 * are broken on Navi10 and Navi14.
-		 */
-		if (needs_flush && (adev->asic_type < CHIP_VEGA10 ||
-				    adev->asic_type == CHIP_NAVI10 ||
-				    adev->asic_type == CHIP_NAVI14))
+		if (needs_flush && !adev->vm_manager.concurrent_flush)
 			continue;
 
 		/* Good, we can use this VMID. Remember this submission as

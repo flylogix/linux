@@ -847,8 +847,10 @@ struct dma_chan *dma_request_chan(struct device *dev, const char *name)
 	}
 	mutex_unlock(&dma_list_mutex);
 
-	if (IS_ERR_OR_NULL(chan))
-		return chan ? chan : ERR_PTR(-EPROBE_DEFER);
+	if (IS_ERR(chan))
+		return chan;
+	if (!chan)
+		return ERR_PTR(-EPROBE_DEFER);
 
 found:
 #ifdef CONFIG_DEBUG_FS
@@ -870,24 +872,6 @@ found:
 	return chan;
 }
 EXPORT_SYMBOL_GPL(dma_request_chan);
-
-/**
- * dma_request_slave_channel - try to allocate an exclusive slave channel
- * @dev:	pointer to client device structure
- * @name:	slave channel name
- *
- * Returns pointer to appropriate DMA channel on success or NULL.
- */
-struct dma_chan *dma_request_slave_channel(struct device *dev,
-					   const char *name)
-{
-	struct dma_chan *ch = dma_request_chan(dev, name);
-	if (IS_ERR(ch))
-		return NULL;
-
-	return ch;
-}
-EXPORT_SYMBOL_GPL(dma_request_slave_channel);
 
 /**
  * dma_request_chan_by_mask - allocate a channel satisfying certain capabilities
@@ -1102,6 +1086,7 @@ static int __dma_async_device_channel_register(struct dma_device *device,
 	kfree(chan->dev);
  err_free_local:
 	free_percpu(chan->local);
+	chan->local = NULL;
 	return rc;
 }
 
@@ -1126,7 +1111,6 @@ static void __dma_async_device_channel_unregister(struct dma_device *device,
 		  "%s called while %d clients hold a reference\n",
 		  __func__, chan->client_count);
 	mutex_lock(&dma_list_mutex);
-	list_del(&chan->device_node);
 	device->chancnt--;
 	chan->dev->chan = NULL;
 	mutex_unlock(&dma_list_mutex);

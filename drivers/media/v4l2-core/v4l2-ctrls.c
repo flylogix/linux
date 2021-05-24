@@ -200,6 +200,7 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 	static const char * const mpeg_video_bitrate_mode[] = {
 		"Variable Bitrate",
 		"Constant Bitrate",
+		"Constant Quality",
 		NULL
 	};
 	static const char * const mpeg_stream_type[] = {
@@ -474,6 +475,23 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 		"3",
 		NULL,
 	};
+	static const char * const vp9_level[] = {
+		"1",
+		"1.1",
+		"2",
+		"2.1",
+		"3",
+		"3.1",
+		"4",
+		"4.1",
+		"5",
+		"5.1",
+		"5.2",
+		"6",
+		"6.1",
+		"6.2",
+		NULL,
+	};
 
 	static const char * const flash_led_mode[] = {
 		"Off",
@@ -590,6 +608,12 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 		"External",
 		NULL,
 	};
+	static const char * const mpeg_video_frame_skip[] = {
+		"Disabled",
+		"Level Limit",
+		"VBV/CPB Limit",
+		NULL,
+	};
 
 	switch (id) {
 	case V4L2_CID_MPEG_AUDIO_SAMPLING_FREQ:
@@ -651,6 +675,8 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 		return flash_strobe_source;
 	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
 		return header_mode;
+	case V4L2_CID_MPEG_VIDEO_FRAME_SKIP_MODE:
+		return mpeg_video_frame_skip;
 	case V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE:
 		return multi_slice;
 	case V4L2_CID_MPEG_VIDEO_H264_ENTROPY_MODE:
@@ -685,6 +711,8 @@ const char * const *v4l2_ctrl_get_menu(u32 id)
 		return vp8_profile;
 	case V4L2_CID_MPEG_VIDEO_VP9_PROFILE:
 		return vp9_profile;
+	case V4L2_CID_MPEG_VIDEO_VP9_LEVEL:
+		return vp9_level;
 	case V4L2_CID_JPEG_CHROMA_SUBSAMPLING:
 		return jpeg_chroma_subsampling;
 	case V4L2_CID_DV_TX_MODE:
@@ -832,6 +860,7 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_MPEG_VIDEO_GOP_CLOSURE:	return "Video GOP Closure";
 	case V4L2_CID_MPEG_VIDEO_PULLDOWN:	return "Video Pulldown";
 	case V4L2_CID_MPEG_VIDEO_BITRATE_MODE:	return "Video Bitrate Mode";
+	case V4L2_CID_MPEG_VIDEO_CONSTANT_QUALITY:	return "Constant Quality";
 	case V4L2_CID_MPEG_VIDEO_BITRATE:	return "Video Bitrate";
 	case V4L2_CID_MPEG_VIDEO_BITRATE_PEAK:	return "Video Peak Bitrate";
 	case V4L2_CID_MPEG_VIDEO_TEMPORAL_DECIMATION: return "Video Temporal Decimation";
@@ -844,6 +873,7 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_MPEG_VIDEO_MB_RC_ENABLE:			return "H264 MB Level Rate Control";
 	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:			return "Sequence Header Mode";
 	case V4L2_CID_MPEG_VIDEO_MAX_REF_PIC:			return "Max Number of Reference Pics";
+	case V4L2_CID_MPEG_VIDEO_FRAME_SKIP_MODE:		return "Frame Skip Mode";
 	case V4L2_CID_MPEG_VIDEO_H263_I_FRAME_QP:		return "H263 I-Frame QP Value";
 	case V4L2_CID_MPEG_VIDEO_H263_P_FRAME_QP:		return "H263 P-Frame QP Value";
 	case V4L2_CID_MPEG_VIDEO_H263_B_FRAME_QP:		return "H263 B-Frame QP Value";
@@ -897,6 +927,7 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS:		return "H264 Decode Parameters";
 	case V4L2_CID_MPEG_VIDEO_H264_DECODE_MODE:		return "H264 Decode Mode";
 	case V4L2_CID_MPEG_VIDEO_H264_START_CODE:		return "H264 Start Code";
+	case V4L2_CID_MPEG_VIDEO_H264_PRED_WEIGHTS:		return "H264 Prediction Weight Table";
 	case V4L2_CID_MPEG_VIDEO_MPEG2_LEVEL:			return "MPEG2 Level";
 	case V4L2_CID_MPEG_VIDEO_MPEG2_PROFILE:			return "MPEG2 Profile";
 	case V4L2_CID_MPEG_VIDEO_MPEG4_I_FRAME_QP:		return "MPEG4 I-Frame QP Value";
@@ -938,6 +969,7 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_MPEG_VIDEO_VPX_P_FRAME_QP:		return "VPX P-Frame QP Value";
 	case V4L2_CID_MPEG_VIDEO_VP8_PROFILE:			return "VP8 Profile";
 	case V4L2_CID_MPEG_VIDEO_VP9_PROFILE:			return "VP9 Profile";
+	case V4L2_CID_MPEG_VIDEO_VP9_LEVEL:			return "VP9 Level";
 	case V4L2_CID_MPEG_VIDEO_VP8_FRAME_HEADER:		return "VP8 Frame Header";
 
 	/* HEVC controls */
@@ -1265,6 +1297,7 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_FLASH_LED_MODE:
 	case V4L2_CID_FLASH_STROBE_SOURCE:
 	case V4L2_CID_MPEG_VIDEO_HEADER_MODE:
+	case V4L2_CID_MPEG_VIDEO_FRAME_SKIP_MODE:
 	case V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE:
 	case V4L2_CID_MPEG_VIDEO_H264_ENTROPY_MODE:
 	case V4L2_CID_MPEG_VIDEO_H264_LEVEL:
@@ -1294,6 +1327,7 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_MPEG_VIDEO_VPX_GOLDEN_FRAME_SEL:
 	case V4L2_CID_MPEG_VIDEO_VP8_PROFILE:
 	case V4L2_CID_MPEG_VIDEO_VP9_PROFILE:
+	case V4L2_CID_MPEG_VIDEO_VP9_LEVEL:
 	case V4L2_CID_DETECT_MD_MODE:
 	case V4L2_CID_MPEG_VIDEO_HEVC_PROFILE:
 	case V4L2_CID_MPEG_VIDEO_HEVC_LEVEL:
@@ -1411,6 +1445,9 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAMS:
 		*type = V4L2_CTRL_TYPE_H264_DECODE_PARAMS;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_PRED_WEIGHTS:
+		*type = V4L2_CTRL_TYPE_H264_PRED_WEIGHTS;
 		break;
 	case V4L2_CID_MPEG_VIDEO_VP8_FRAME_HEADER:
 		*type = V4L2_CTRL_TYPE_VP8_FRAME_HEADER;
@@ -1721,6 +1758,8 @@ static void std_log(const struct v4l2_ctrl *ctrl)
 
 #define zero_padding(s) \
 	memset(&(s).padding, 0, sizeof((s).padding))
+#define zero_reserved(s) \
+	memset(&(s).reserved, 0, sizeof((s).reserved))
 
 /*
  * Compound controls validation requires setting unused fields/flags to zero
@@ -1731,6 +1770,8 @@ static int std_validate_compound(const struct v4l2_ctrl *ctrl, u32 idx,
 {
 	struct v4l2_ctrl_mpeg2_slice_params *p_mpeg2_slice_params;
 	struct v4l2_ctrl_vp8_frame_header *p_vp8_frame_header;
+	struct v4l2_ctrl_h264_slice_params *p_h264_slice_params;
+	struct v4l2_ctrl_h264_decode_params *p_h264_dec_params;
 	struct v4l2_ctrl_hevc_sps *p_hevc_sps;
 	struct v4l2_ctrl_hevc_pps *p_hevc_pps;
 	struct v4l2_ctrl_hevc_slice_params *p_hevc_slice_params;
@@ -1790,8 +1831,25 @@ static int std_validate_compound(const struct v4l2_ctrl *ctrl, u32 idx,
 	case V4L2_CTRL_TYPE_H264_SPS:
 	case V4L2_CTRL_TYPE_H264_PPS:
 	case V4L2_CTRL_TYPE_H264_SCALING_MATRIX:
+	case V4L2_CTRL_TYPE_H264_PRED_WEIGHTS:
+		break;
+
 	case V4L2_CTRL_TYPE_H264_SLICE_PARAMS:
+		p_h264_slice_params = p;
+
+		zero_reserved(*p_h264_slice_params);
+		break;
+
 	case V4L2_CTRL_TYPE_H264_DECODE_PARAMS:
+		p_h264_dec_params = p;
+
+		for (i = 0; i < V4L2_H264_NUM_DPB_ENTRIES; i++) {
+			struct v4l2_h264_dpb_entry *dpb_entry =
+				&p_h264_dec_params->dpb[i];
+
+			zero_reserved(*dpb_entry);
+		}
+		zero_reserved(*p_h264_dec_params);
 		break;
 
 	case V4L2_CTRL_TYPE_VP8_FRAME_HEADER:
@@ -1929,7 +1987,8 @@ static int std_validate(const struct v4l2_ctrl *ctrl, u32 idx,
 	case V4L2_CTRL_TYPE_INTEGER_MENU:
 		if (ptr.p_s32[idx] < ctrl->minimum || ptr.p_s32[idx] > ctrl->maximum)
 			return -ERANGE;
-		if (ctrl->menu_skip_mask & (1ULL << ptr.p_s32[idx]))
+		if (ptr.p_s32[idx] < BITS_PER_LONG_LONG &&
+		    (ctrl->menu_skip_mask & BIT_ULL(ptr.p_s32[idx])))
 			return -EINVAL;
 		if (ctrl->type == V4L2_CTRL_TYPE_MENU &&
 		    ctrl->qmenu[ptr.p_s32[idx]][0] == '\0')
@@ -2142,7 +2201,16 @@ static void new_to_req(struct v4l2_ctrl_ref *ref)
 	if (!ref)
 		return;
 	ptr_to_ptr(ref->ctrl, ref->ctrl->p_new, ref->p_req);
-	ref->req = ref;
+	ref->valid_p_req = true;
+}
+
+/* Copy the current value to the request value */
+static void cur_to_req(struct v4l2_ctrl_ref *ref)
+{
+	if (!ref)
+		return;
+	ptr_to_ptr(ref->ctrl, ref->ctrl->p_cur, ref->p_req);
+	ref->valid_p_req = true;
 }
 
 /* Copy the request value to the new value */
@@ -2150,8 +2218,8 @@ static void req_to_new(struct v4l2_ctrl_ref *ref)
 {
 	if (!ref)
 		return;
-	if (ref->req)
-		ptr_to_ptr(ref->ctrl, ref->req->p_req, ref->ctrl->p_new);
+	if (ref->valid_p_req)
+		ptr_to_ptr(ref->ctrl, ref->p_req, ref->ctrl->p_new);
 	else
 		ptr_to_ptr(ref->ctrl, ref->ctrl->p_cur, ref->ctrl->p_new);
 }
@@ -2288,7 +2356,15 @@ void v4l2_ctrl_handler_free(struct v4l2_ctrl_handler *hdl)
 	if (hdl == NULL || hdl->buckets == NULL)
 		return;
 
-	if (!hdl->req_obj.req && !list_empty(&hdl->requests)) {
+	/*
+	 * If the main handler is freed and it is used by handler objects in
+	 * outstanding requests, then unbind and put those objects before
+	 * freeing the main handler.
+	 *
+	 * The main handler can be identified by having a NULL ops pointer in
+	 * the request object.
+	 */
+	if (!hdl->req_obj.ops && !list_empty(&hdl->requests)) {
 		struct v4l2_ctrl_handler *req, *next_req;
 
 		list_for_each_entry_safe(req, next_req, &hdl->requests, requests) {
@@ -2552,6 +2628,9 @@ static struct v4l2_ctrl *v4l2_ctrl_new(struct v4l2_ctrl_handler *hdl,
 		break;
 	case V4L2_CTRL_TYPE_H264_DECODE_PARAMS:
 		elem_size = sizeof(struct v4l2_ctrl_h264_decode_params);
+		break;
+	case V4L2_CTRL_TYPE_H264_PRED_WEIGHTS:
+		elem_size = sizeof(struct v4l2_ctrl_h264_pred_weights);
 		break;
 	case V4L2_CTRL_TYPE_VP8_FRAME_HEADER:
 		elem_size = sizeof(struct v4l2_ctrl_vp8_frame_header);
@@ -3318,39 +3397,8 @@ static void v4l2_ctrl_request_queue(struct media_request_object *obj)
 	struct v4l2_ctrl_handler *hdl =
 		container_of(obj, struct v4l2_ctrl_handler, req_obj);
 	struct v4l2_ctrl_handler *main_hdl = obj->priv;
-	struct v4l2_ctrl_handler *prev_hdl = NULL;
-	struct v4l2_ctrl_ref *ref_ctrl, *ref_ctrl_prev = NULL;
 
 	mutex_lock(main_hdl->lock);
-	if (list_empty(&main_hdl->requests_queued))
-		goto queue;
-
-	prev_hdl = list_last_entry(&main_hdl->requests_queued,
-				   struct v4l2_ctrl_handler, requests_queued);
-	/*
-	 * Note: prev_hdl and hdl must contain the same list of control
-	 * references, so if any differences are detected then that is a
-	 * driver bug and the WARN_ON is triggered.
-	 */
-	mutex_lock(prev_hdl->lock);
-	ref_ctrl_prev = list_first_entry(&prev_hdl->ctrl_refs,
-					 struct v4l2_ctrl_ref, node);
-	list_for_each_entry(ref_ctrl, &hdl->ctrl_refs, node) {
-		if (ref_ctrl->req)
-			continue;
-		while (ref_ctrl_prev->ctrl->id < ref_ctrl->ctrl->id) {
-			/* Should never happen, but just in case... */
-			if (list_is_last(&ref_ctrl_prev->node,
-					 &prev_hdl->ctrl_refs))
-				break;
-			ref_ctrl_prev = list_next_entry(ref_ctrl_prev, node);
-		}
-		if (WARN_ON(ref_ctrl_prev->ctrl->id != ref_ctrl->ctrl->id))
-			break;
-		ref_ctrl->req = ref_ctrl_prev->req;
-	}
-	mutex_unlock(prev_hdl->lock);
-queue:
 	list_add_tail(&hdl->requests_queued, &main_hdl->requests_queued);
 	hdl->request_is_queued = true;
 	mutex_unlock(main_hdl->lock);
@@ -3362,8 +3410,8 @@ static void v4l2_ctrl_request_unbind(struct media_request_object *obj)
 		container_of(obj, struct v4l2_ctrl_handler, req_obj);
 	struct v4l2_ctrl_handler *main_hdl = obj->priv;
 
-	list_del_init(&hdl->requests);
 	mutex_lock(main_hdl->lock);
+	list_del_init(&hdl->requests);
 	if (hdl->request_is_queued) {
 		list_del_init(&hdl->requests_queued);
 		hdl->request_is_queued = false;
@@ -3407,7 +3455,7 @@ v4l2_ctrl_request_hdl_ctrl_find(struct v4l2_ctrl_handler *hdl, u32 id)
 {
 	struct v4l2_ctrl_ref *ref = find_ref_lock(hdl, id);
 
-	return (ref && ref->req == ref) ? ref->ctrl : NULL;
+	return (ref && ref->valid_p_req) ? ref->ctrl : NULL;
 }
 EXPORT_SYMBOL_GPL(v4l2_ctrl_request_hdl_ctrl_find);
 
@@ -3422,8 +3470,11 @@ static int v4l2_ctrl_request_bind(struct media_request *req,
 	if (!ret) {
 		ret = media_request_object_bind(req, &req_ops,
 						from, false, &hdl->req_obj);
-		if (!ret)
+		if (!ret) {
+			mutex_lock(from->lock);
 			list_add_tail(&hdl->requests, &from->requests);
+			mutex_unlock(from->lock);
+		}
 	}
 	return ret;
 }
@@ -3593,7 +3644,13 @@ static int class_check(struct v4l2_ctrl_handler *hdl, u32 which)
 	return find_ref_lock(hdl, which | 1) ? 0 : -EINVAL;
 }
 
-/* Get extended controls. Allocates the helpers array if needed. */
+/*
+ * Get extended controls. Allocates the helpers array if needed.
+ *
+ * Note that v4l2_g_ext_ctrls_common() with 'which' set to
+ * V4L2_CTRL_WHICH_REQUEST_VAL is only called if the request was
+ * completed, and in that case valid_p_req is true for all controls.
+ */
 static int v4l2_g_ext_ctrls_common(struct v4l2_ctrl_handler *hdl,
 				   struct v4l2_ext_controls *cs,
 				   struct video_device *vdev)
@@ -3602,9 +3659,10 @@ static int v4l2_g_ext_ctrls_common(struct v4l2_ctrl_handler *hdl,
 	struct v4l2_ctrl_helper *helpers = helper;
 	int ret;
 	int i, j;
-	bool def_value;
+	bool is_default, is_request;
 
-	def_value = (cs->which == V4L2_CTRL_WHICH_DEF_VAL);
+	is_default = (cs->which == V4L2_CTRL_WHICH_DEF_VAL);
+	is_request = (cs->which == V4L2_CTRL_WHICH_REQUEST_VAL);
 
 	cs->error_idx = cs->count;
 	cs->which = V4L2_CTRL_ID2WHICH(cs->which);
@@ -3630,11 +3688,9 @@ static int v4l2_g_ext_ctrls_common(struct v4l2_ctrl_handler *hdl,
 			ret = -EACCES;
 
 	for (i = 0; !ret && i < cs->count; i++) {
-		int (*ctrl_to_user)(struct v4l2_ext_control *c,
-				    struct v4l2_ctrl *ctrl);
 		struct v4l2_ctrl *master;
-
-		ctrl_to_user = def_value ? def_to_user : cur_to_user;
+		bool is_volatile = false;
+		u32 idx = i;
 
 		if (helpers[i].mref == NULL)
 			continue;
@@ -3644,31 +3700,48 @@ static int v4l2_g_ext_ctrls_common(struct v4l2_ctrl_handler *hdl,
 
 		v4l2_ctrl_lock(master);
 
-		/* g_volatile_ctrl will update the new control values */
-		if (!def_value &&
+		/*
+		 * g_volatile_ctrl will update the new control values.
+		 * This makes no sense for V4L2_CTRL_WHICH_DEF_VAL and
+		 * V4L2_CTRL_WHICH_REQUEST_VAL. In the case of requests
+		 * it is v4l2_ctrl_request_complete() that copies the
+		 * volatile controls at the time of request completion
+		 * to the request, so you don't want to do that again.
+		 */
+		if (!is_default && !is_request &&
 		    ((master->flags & V4L2_CTRL_FLAG_VOLATILE) ||
 		    (master->has_volatiles && !is_cur_manual(master)))) {
 			for (j = 0; j < master->ncontrols; j++)
 				cur_to_new(master->cluster[j]);
 			ret = call_op(master, g_volatile_ctrl);
-			ctrl_to_user = new_to_user;
+			is_volatile = true;
 		}
-		/* If OK, then copy the current (for non-volatile controls)
-		   or the new (for volatile controls) control values to the
-		   caller */
-		if (!ret) {
-			u32 idx = i;
 
-			do {
-				if (helpers[idx].ref->req)
-					ret = req_to_user(cs->controls + idx,
-						helpers[idx].ref->req);
-				else
-					ret = ctrl_to_user(cs->controls + idx,
-						helpers[idx].ref->ctrl);
-				idx = helpers[idx].next;
-			} while (!ret && idx);
+		if (ret) {
+			v4l2_ctrl_unlock(master);
+			break;
 		}
+
+		/*
+		 * Copy the default value (if is_default is true), the
+		 * request value (if is_request is true and p_req is valid),
+		 * the new volatile value (if is_volatile is true) or the
+		 * current value.
+		 */
+		do {
+			struct v4l2_ctrl_ref *ref = helpers[idx].ref;
+
+			if (is_default)
+				ret = def_to_user(cs->controls + idx, ref->ctrl);
+			else if (is_request && ref->valid_p_req)
+				ret = req_to_user(cs->controls + idx, ref);
+			else if (is_volatile)
+				ret = new_to_user(cs->controls + idx, ref->ctrl);
+			else
+				ret = cur_to_user(cs->controls + idx, ref->ctrl);
+			idx = helpers[idx].next;
+		} while (!ret && idx);
+
 		v4l2_ctrl_unlock(master);
 	}
 
@@ -4306,8 +4379,6 @@ void v4l2_ctrl_request_complete(struct media_request *req,
 		unsigned int i;
 
 		if (ctrl->flags & V4L2_CTRL_FLAG_VOLATILE) {
-			ref->req = ref;
-
 			v4l2_ctrl_lock(master);
 			/* g_volatile_ctrl will update the current control values */
 			for (i = 0; i < master->ncontrols; i++)
@@ -4317,21 +4388,12 @@ void v4l2_ctrl_request_complete(struct media_request *req,
 			v4l2_ctrl_unlock(master);
 			continue;
 		}
-		if (ref->req == ref)
+		if (ref->valid_p_req)
 			continue;
 
+		/* Copy the current control value into the request */
 		v4l2_ctrl_lock(ctrl);
-		if (ref->req) {
-			ptr_to_ptr(ctrl, ref->req->p_req, ref->p_req);
-		} else {
-			ptr_to_ptr(ctrl, ctrl->p_cur, ref->p_req);
-			/*
-			 * Set ref->req to ensure that when userspace wants to
-			 * obtain the controls of this request it will take
-			 * this value and not the current value of the control.
-			 */
-			ref->req = ref;
-		}
+		cur_to_req(ref);
 		v4l2_ctrl_unlock(ctrl);
 	}
 
@@ -4396,7 +4458,7 @@ int v4l2_ctrl_request_setup(struct media_request *req,
 				struct v4l2_ctrl_ref *r =
 					find_ref(hdl, master->cluster[i]->id);
 
-				if (r->req && r == r->req) {
+				if (r->valid_p_req) {
 					have_new_data = true;
 					break;
 				}

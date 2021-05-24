@@ -176,6 +176,8 @@ static int idxd_setup_internals(struct idxd_device *idxd)
 		wq->idxd = idxd;
 		mutex_init(&wq->wq_lock);
 		wq->idxd_cdev.minor = -1;
+		wq->max_xfer_bytes = idxd->max_xfer_bytes;
+		wq->max_batch_size = idxd->max_batch_size;
 		wq->wqcfg = devm_kzalloc(dev, idxd->wqcfg_size, GFP_KERNEL);
 		if (!wq->wqcfg)
 			return -ENOMEM;
@@ -287,7 +289,10 @@ static int idxd_probe(struct idxd_device *idxd)
 	int rc;
 
 	dev_dbg(dev, "%s entered and resetting device\n", __func__);
-	idxd_device_init_reset(idxd);
+	rc = idxd_device_init_reset(idxd);
+	if (rc < 0)
+		return rc;
+
 	dev_dbg(dev, "IDXD reset complete\n");
 
 	idxd_read_caps(idxd);

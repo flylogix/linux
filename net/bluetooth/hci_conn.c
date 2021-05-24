@@ -1388,7 +1388,7 @@ static int hci_conn_auth(struct hci_conn *conn, __u8 sec_level, __u8 auth_type)
 	return 0;
 }
 
-/* Encrypt the the link */
+/* Encrypt the link */
 static void hci_conn_encrypt(struct hci_conn *conn)
 {
 	BT_DBG("hcon %p", conn);
@@ -1789,8 +1789,6 @@ u32 hci_conn_get_phy(struct hci_conn *conn)
 {
 	u32 phys = 0;
 
-	hci_dev_lock(conn->hdev);
-
 	/* BLUETOOTH CORE SPECIFICATION Version 5.2 | Vol 2, Part B page 471:
 	 * Table 6.2: Packets defined for synchronous, asynchronous, and
 	 * CSB logical transport types.
@@ -1886,8 +1884,6 @@ u32 hci_conn_get_phy(struct hci_conn *conn)
 
 		break;
 	}
-
-	hci_dev_unlock(conn->hdev);
 
 	return phys;
 }

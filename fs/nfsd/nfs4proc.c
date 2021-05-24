@@ -1299,7 +1299,7 @@ nfsd4_cleanup_inter_ssc(struct vfsmount *ss_mnt, struct nfsd_file *src,
 			struct nfsd_file *dst)
 {
 	nfs42_ssc_close(src->nf_file);
-	/* 'src' is freed by nfsd4_do_async_copy */
+	fput(src->nf_file);
 	nfsd_file_put(dst);
 	mntput(ss_mnt);
 }
@@ -1425,7 +1425,7 @@ static __be32 nfsd4_do_copy(struct nfsd4_copy *copy, bool sync)
 	return status;
 }
 
-static int dup_copy_fields(struct nfsd4_copy *src, struct nfsd4_copy *dst)
+static void dup_copy_fields(struct nfsd4_copy *src, struct nfsd4_copy *dst)
 {
 	dst->cp_src_pos = src->cp_src_pos;
 	dst->cp_dst_pos = src->cp_dst_pos;
@@ -1444,8 +1444,6 @@ static int dup_copy_fields(struct nfsd4_copy *src, struct nfsd4_copy *dst)
 	memcpy(&dst->stateid, &src->stateid, sizeof(src->stateid));
 	memcpy(&dst->c_fh, &src->c_fh, sizeof(src->c_fh));
 	dst->ss_mnt = src->ss_mnt;
-
-	return 0;
 }
 
 static void cleanup_async_copy(struct nfsd4_copy *copy)
@@ -1537,11 +1535,9 @@ nfsd4_copy(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 		if (!nfs4_init_copy_state(nn, copy))
 			goto out_err;
 		refcount_set(&async_copy->refcount, 1);
-		memcpy(&copy->cp_res.cb_stateid, &copy->cp_stateid,
-			sizeof(copy->cp_stateid));
-		status = dup_copy_fields(copy, async_copy);
-		if (status)
-			goto out_err;
+		memcpy(&copy->cp_res.cb_stateid, &copy->cp_stateid.stid,
+			sizeof(copy->cp_res.cb_stateid));
+		dup_copy_fields(copy, async_copy);
 		async_copy->copy_task = kthread_create(nfsd4_do_async_copy,
 				async_copy, "%s", "copy thread");
 		if (IS_ERR(async_copy->copy_task))
@@ -2167,7 +2163,7 @@ nfsd4_removexattr(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
 static __be32
 nfsd4_proc_null(struct svc_rqst *rqstp)
 {
-	return nfs_ok;
+	return rpc_success;
 }
 
 static inline void nfsd4_increment_op_stats(u32 opnum)
@@ -2459,15 +2455,14 @@ encode_op:
 		nfsd4_increment_op_stats(op->opnum);
 	}
 
-	cstate->status = status;
 	fh_put(current_fh);
 	fh_put(save_fh);
 	BUG_ON(cstate->replay_owner);
 out:
+	cstate->status = status;
 	/* Reset deferral mechanism for RPC deferrals */
 	set_bit(RQ_USEDEFERRAL, &rqstp->rq_flags);
-	dprintk("nfsv4 compound returned %d\n", ntohl(status));
-	return status;
+	return rpc_success;
 }
 
 #define op_encode_hdr_size		(2)
@@ -2591,6 +2586,20 @@ static inline u32 nfsd4_read_rsize(struct svc_rqst *rqstp, struct nfsd4_op *op)
 	rlen = min(op->u.read.rd_length, maxcount);
 
 	return (op_encode_hdr_size + 2 + XDR_QUADLEN(rlen)) * sizeof(__be32);
+}
+
+static inline u32 nfsd4_read_plus_rsize(struct svc_rqst *rqstp, struct nfsd4_op *op)
+{
+	u32 maxcount = svc_max_payload(rqstp);
+	u32 rlen = min(op->u.read.rd_length, maxcount);
+	/*
+	 * If we detect that the file changed during hole encoding, then we
+	 * recover by encoding the remaining reply as data. This means we need
+	 * to set aside enough room to encode two data segments.
+	 */
+	u32 seg_len = 2 * (1 + 2 + 1);
+
+	return (op_encode_hdr_size + 2 + seg_len + XDR_QUADLEN(rlen)) * sizeof(__be32);
 }
 
 static inline u32 nfsd4_readdir_rsize(struct svc_rqst *rqstp, struct nfsd4_op *op)
@@ -3165,6 +3174,13 @@ static const struct nfsd4_operation nfsd4_ops[] = {
 		.op_name = "OP_COPY",
 		.op_rsize_bop = nfsd4_copy_rsize,
 	},
+	[OP_READ_PLUS] = {
+		.op_func = nfsd4_read,
+		.op_release = nfsd4_read_release,
+		.op_name = "OP_READ_PLUS",
+		.op_rsize_bop = nfsd4_read_plus_rsize,
+		.op_get_currentstateid = nfsd4_get_readstateid,
+	},
 	[OP_SEEK] = {
 		.op_func = nfsd4_seek,
 		.op_name = "OP_SEEK",
@@ -3233,7 +3249,7 @@ bool nfsd4_spo_must_allow(struct svc_rqst *rqstp)
 	if (!cstate->minorversion)
 		return false;
 
-	if (cstate->spo_must_allowed == true)
+	if (cstate->spo_must_allowed)
 		return true;
 
 	opiter = resp->opcnt;
@@ -3281,6 +3297,7 @@ struct nfsd4_voidargs { int dummy; };
 static const struct svc_procedure nfsd_procedures4[2] = {
 	[NFSPROC4_NULL] = {
 		.pc_func = nfsd4_proc_null,
+		.pc_decode = nfs4svc_decode_voidarg,
 		.pc_encode = nfs4svc_encode_voidres,
 		.pc_argsize = sizeof(struct nfsd4_voidargs),
 		.pc_ressize = sizeof(struct nfsd4_voidres),

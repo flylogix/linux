@@ -19,6 +19,9 @@
 /* mt8173 */
 #define SMI_LARB_MMU_EN		0xf00
 
+/* mt8167 */
+#define MT8167_SMI_LARB_MMU_EN	0xfc0
+
 /* mt2701 */
 #define REG_SMI_SECUR_CON_BASE		0x5c0
 
@@ -127,7 +130,7 @@ static void mtk_smi_clk_disable(const struct mtk_smi *smi)
 
 int mtk_smi_larb_get(struct device *larbdev)
 {
-	int ret = pm_runtime_get_sync(larbdev);
+	int ret = pm_runtime_resume_and_get(larbdev);
 
 	return (ret < 0) ? ret : 0;
 }
@@ -179,6 +182,13 @@ static void mtk_smi_larb_config_port_mt8173(struct device *dev)
 	writel(*larb->mmu, larb->base + SMI_LARB_MMU_EN);
 }
 
+static void mtk_smi_larb_config_port_mt8167(struct device *dev)
+{
+	struct mtk_smi_larb *larb = dev_get_drvdata(dev);
+
+	writel(*larb->mmu, larb->base + MT8167_SMI_LARB_MMU_EN);
+}
+
 static void mtk_smi_larb_config_port_gen1(struct device *dev)
 {
 	struct mtk_smi_larb *larb = dev_get_drvdata(dev);
@@ -226,6 +236,11 @@ static const struct mtk_smi_larb_gen mtk_smi_larb_mt8173 = {
 	.config_port = mtk_smi_larb_config_port_mt8173,
 };
 
+static const struct mtk_smi_larb_gen mtk_smi_larb_mt8167 = {
+	/* mt8167 do not need the port in larb */
+	.config_port = mtk_smi_larb_config_port_mt8167,
+};
+
 static const struct mtk_smi_larb_gen mtk_smi_larb_mt2701 = {
 	.port_in_larb = {
 		LARB0_PORT_OFFSET, LARB1_PORT_OFFSET,
@@ -254,6 +269,10 @@ static const struct mtk_smi_larb_gen mtk_smi_larb_mt8183 = {
 };
 
 static const struct of_device_id mtk_smi_larb_of_ids[] = {
+	{
+		.compatible = "mediatek,mt8167-smi-larb",
+		.data = &mtk_smi_larb_mt8167
+	},
 	{
 		.compatible = "mediatek,mt8173-smi-larb",
 		.data = &mtk_smi_larb_mt8173
@@ -347,7 +366,7 @@ static int __maybe_unused mtk_smi_larb_resume(struct device *dev)
 	int ret;
 
 	/* Power on smi-common. */
-	ret = pm_runtime_get_sync(larb->smi_common_dev);
+	ret = pm_runtime_resume_and_get(larb->smi_common_dev);
 	if (ret < 0) {
 		dev_err(dev, "Failed to pm get for smi-common(%d).\n", ret);
 		return ret;
@@ -416,6 +435,10 @@ static const struct mtk_smi_common_plat mtk_smi_common_mt8183 = {
 static const struct of_device_id mtk_smi_common_of_ids[] = {
 	{
 		.compatible = "mediatek,mt8173-smi-common",
+		.data = &mtk_smi_common_gen2,
+	},
+	{
+		.compatible = "mediatek,mt8167-smi-common",
 		.data = &mtk_smi_common_gen2,
 	},
 	{

@@ -340,9 +340,6 @@ static int gpiochip_set_desc_names(struct gpio_chip *gc)
 	struct gpio_device *gdev = gc->gpiodev;
 	int i;
 
-	if (!gc->names)
-		return 0;
-
 	/* First check all names if they are unique */
 	for (i = 0; i != gc->ngpio; ++i) {
 		struct gpio_desc *gpio;
@@ -357,6 +354,53 @@ static int gpiochip_set_desc_names(struct gpio_chip *gc)
 	/* Then add all names to the GPIO descriptors */
 	for (i = 0; i != gc->ngpio; ++i)
 		gdev->descs[i].name = gc->names[i];
+
+	return 0;
+}
+
+/*
+ * devprop_gpiochip_set_names - Set GPIO line names using device properties
+ * @chip: GPIO chip whose lines should be named, if possible
+ *
+ * Looks for device property "gpio-line-names" and if it exists assigns
+ * GPIO line names for the chip. The memory allocated for the assigned
+ * names belong to the underlying firmware node and should not be released
+ * by the caller.
+ */
+static int devprop_gpiochip_set_names(struct gpio_chip *chip)
+{
+	struct gpio_device *gdev = chip->gpiodev;
+	struct fwnode_handle *fwnode = dev_fwnode(&gdev->dev);
+	const char **names;
+	int ret, i;
+	int count;
+
+	count = fwnode_property_string_array_count(fwnode, "gpio-line-names");
+	if (count < 0)
+		return 0;
+
+	if (count > gdev->ngpio) {
+		dev_warn(&gdev->dev, "gpio-line-names is length %d but should be at most length %d",
+			 count, gdev->ngpio);
+		count = gdev->ngpio;
+	}
+
+	names = kcalloc(count, sizeof(*names), GFP_KERNEL);
+	if (!names)
+		return -ENOMEM;
+
+	ret = fwnode_property_read_string_array(fwnode, "gpio-line-names",
+						names, count);
+	if (ret < 0) {
+		dev_warn(&gdev->dev, "failed to read GPIO line names\n");
+		kfree(names);
+		return ret;
+	}
+
+	for (i = 0; i < count; i++)
+		gdev->descs[i].name = names[i];
+
+	kfree(names);
 
 	return 0;
 }
@@ -424,19 +468,35 @@ EXPORT_SYMBOL_GPL(gpiochip_line_is_valid);
 static void gpiodevice_release(struct device *dev)
 {
 	struct gpio_device *gdev = dev_get_drvdata(dev);
+	unsigned long flags;
 
+	spin_lock_irqsave(&gpio_lock, flags);
 	list_del(&gdev->list);
-	ida_simple_remove(&gpio_ida, gdev->id);
+	spin_unlock_irqrestore(&gpio_lock, flags);
+
+	ida_free(&gpio_ida, gdev->id);
 	kfree_const(gdev->label);
 	kfree(gdev->descs);
 	kfree(gdev);
 }
 
+#ifdef CONFIG_GPIO_CDEV
+#define gcdev_register(gdev, devt)	gpiolib_cdev_register((gdev), (devt))
+#define gcdev_unregister(gdev)		gpiolib_cdev_unregister((gdev))
+#else
+/*
+ * gpiolib_cdev_register() indirectly calls device_add(), which is still
+ * required even when cdev is not selected.
+ */
+#define gcdev_register(gdev, devt)	device_add(&(gdev)->dev)
+#define gcdev_unregister(gdev)		device_del(&(gdev)->dev)
+#endif
+
 static int gpiochip_setup_dev(struct gpio_device *gdev)
 {
 	int ret;
 
-	ret = gpiolib_cdev_register(gdev, gpio_devt);
+	ret = gcdev_register(gdev, gpio_devt);
 	if (ret)
 		return ret;
 
@@ -452,7 +512,7 @@ static int gpiochip_setup_dev(struct gpio_device *gdev)
 	return 0;
 
 err_remove_device:
-	gpiolib_cdev_unregister(gdev);
+	gcdev_unregister(gdev);
 	return ret;
 }
 
@@ -508,6 +568,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 			       struct lock_class_key *lock_key,
 			       struct lock_class_key *request_key)
 {
+	struct fwnode_handle *fwnode = gc->parent ? dev_fwnode(gc->parent) : NULL;
 	unsigned long	flags;
 	int		ret = 0;
 	unsigned	i;
@@ -537,12 +598,22 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 		gc->of_node = gdev->dev.of_node;
 #endif
 
-	gdev->id = ida_simple_get(&gpio_ida, 0, 0, GFP_KERNEL);
+	/*
+	 * Assign fwnode depending on the result of the previous calls,
+	 * if none of them succeed, assign it to the parent's one.
+	 */
+	gdev->dev.fwnode = dev_fwnode(&gdev->dev) ?: fwnode;
+
+	gdev->id = ida_alloc(&gpio_ida, GFP_KERNEL);
 	if (gdev->id < 0) {
 		ret = gdev->id;
 		goto err_free_gdev;
 	}
-	dev_set_name(&gdev->dev, GPIOCHIP_NAME "%d", gdev->id);
+
+	ret = dev_set_name(&gdev->dev, GPIOCHIP_NAME "%d", gdev->id);
+	if (ret)
+		goto err_free_ida;
+
 	device_initialize(&gdev->dev);
 	dev_set_drvdata(&gdev->dev, gdev);
 	if (gc->parent && gc->parent->driver)
@@ -556,7 +627,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 	gdev->descs = kcalloc(gc->ngpio, sizeof(gdev->descs[0]), GFP_KERNEL);
 	if (!gdev->descs) {
 		ret = -ENOMEM;
-		goto err_free_ida;
+		goto err_free_dev_name;
 	}
 
 	if (gc->ngpio == 0) {
@@ -621,7 +692,10 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
 	INIT_LIST_HEAD(&gdev->pin_ranges);
 #endif
 
-	ret = gpiochip_set_desc_names(gc);
+	if (gc->names)
+		ret = gpiochip_set_desc_names(gc);
+	else
+		ret = devprop_gpiochip_set_names(gc);
 	if (ret)
 		goto err_remove_from_list;
 
@@ -704,8 +778,10 @@ err_free_label:
 	kfree_const(gdev->label);
 err_free_descs:
 	kfree(gdev->descs);
+err_free_dev_name:
+	kfree(dev_name(&gdev->dev));
 err_free_ida:
-	ida_simple_remove(&gpio_ida, gdev->id);
+	ida_free(&gpio_ida, gdev->id);
 err_free_gdev:
 	/* failures here can mean systems won't boot... */
 	pr_err("%s: GPIOs %d..%d (%s) failed to register, %d\n", __func__,
@@ -774,7 +850,7 @@ void gpiochip_remove(struct gpio_chip *gc)
 	 * be removed, else it will be dangling until the last user is
 	 * gone.
 	 */
-	gpiolib_cdev_unregister(gdev);
+	gcdev_unregister(gdev);
 	put_device(&gdev->dev);
 }
 EXPORT_SYMBOL_GPL(gpiochip_remove);
@@ -1414,7 +1490,8 @@ static void gpiochip_set_irq_hooks(struct gpio_chip *gc)
 	if (WARN_ON(gc->irq.irq_enable))
 		return;
 	/* Check if the irqchip already has this hook... */
-	if (irqchip->irq_enable == gpiochip_irq_enable) {
+	if (irqchip->irq_enable == gpiochip_irq_enable ||
+		irqchip->irq_mask == gpiochip_irq_mask) {
 		/*
 		 * ...and if so, give a gentle warning that this is bad
 		 * practice.
@@ -1743,6 +1820,11 @@ EXPORT_SYMBOL_GPL(gpiochip_generic_request);
  */
 void gpiochip_generic_free(struct gpio_chip *gc, unsigned offset)
 {
+#ifdef CONFIG_PINCTRL
+	if (list_empty(&gc->gpiodev->pin_ranges))
+		return;
+#endif
+
 	pinctrl_gpio_free(gc->gpiodev->base + offset);
 }
 EXPORT_SYMBOL_GPL(gpiochip_generic_free);
@@ -2041,9 +2123,14 @@ static bool gpiod_free_commit(struct gpio_desc *desc)
 		clear_bit(FLAG_PULL_UP, &desc->flags);
 		clear_bit(FLAG_PULL_DOWN, &desc->flags);
 		clear_bit(FLAG_BIAS_DISABLE, &desc->flags);
+		clear_bit(FLAG_EDGE_RISING, &desc->flags);
+		clear_bit(FLAG_EDGE_FALLING, &desc->flags);
 		clear_bit(FLAG_IS_HOGGED, &desc->flags);
 #ifdef CONFIG_OF_DYNAMIC
 		desc->hog = NULL;
+#endif
+#ifdef CONFIG_GPIO_CDEV
+		WRITE_ONCE(desc->debounce_period_us, 0);
 #endif
 		ret = true;
 	}
@@ -4402,31 +4489,18 @@ static int gpiolib_seq_show(struct seq_file *s, void *v)
 	return 0;
 }
 
-static const struct seq_operations gpiolib_seq_ops = {
+static const struct seq_operations gpiolib_sops = {
 	.start = gpiolib_seq_start,
 	.next = gpiolib_seq_next,
 	.stop = gpiolib_seq_stop,
 	.show = gpiolib_seq_show,
 };
-
-static int gpiolib_open(struct inode *inode, struct file *file)
-{
-	return seq_open(file, &gpiolib_seq_ops);
-}
-
-static const struct file_operations gpiolib_operations = {
-	.owner		= THIS_MODULE,
-	.open		= gpiolib_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
-};
+DEFINE_SEQ_ATTRIBUTE(gpiolib);
 
 static int __init gpiolib_debugfs_init(void)
 {
 	/* /sys/kernel/debug/gpio */
-	debugfs_create_file("gpio", S_IFREG | S_IRUGO, NULL, NULL,
-			    &gpiolib_operations);
+	debugfs_create_file("gpio", 0444, NULL, NULL, &gpiolib_fops);
 	return 0;
 }
 subsys_initcall(gpiolib_debugfs_init);

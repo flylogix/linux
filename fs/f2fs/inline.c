@@ -191,6 +191,10 @@ int f2fs_convert_inline_inode(struct inode *inode)
 	if (!f2fs_has_inline_data(inode))
 		return 0;
 
+	err = dquot_initialize(inode);
+	if (err)
+		return err;
+
 	page = f2fs_grab_cache_page(inode->i_mapping, 0, false);
 	if (!page)
 		return -ENOMEM;
@@ -524,7 +528,7 @@ static int f2fs_move_rehashed_dirents(struct inode *dir, struct page *ipage,
 			!f2fs_has_inline_xattr(dir))
 		F2FS_I(dir)->i_inline_xattr_size = 0;
 
-	kvfree(backup_dentry);
+	kfree(backup_dentry);
 	return 0;
 recover:
 	lock_page(ipage);
@@ -535,7 +539,7 @@ recover:
 	set_page_dirty(ipage);
 	f2fs_put_page(ipage, 1);
 
-	kvfree(backup_dentry);
+	kfree(backup_dentry);
 	return err;
 }
 
