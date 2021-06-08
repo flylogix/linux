@@ -105,6 +105,21 @@
 	};
 };
 
+&gpioi {
+       cel2-enable {
+               gpio-hog;
+               gpios = <3 GPIO_OPEN_DRAIN>;
+               output-high;
+               line-name = "cel2-enable";
+       };
+       cel2-rstn {
+               gpio-hog;
+               gpios = <5 GPIO_OPEN_DRAIN>;
+               output-high;
+               line-name = "cel2-rstn";
+       };
+};
+
 &dts {
 	status = "okay";
 };
