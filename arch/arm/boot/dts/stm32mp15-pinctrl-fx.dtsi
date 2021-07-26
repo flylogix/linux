@@ -78,7 +78,7 @@
 		};
 		pins2 {
 			pinmux = <STM32_PINMUX('C', 12, AF12)>; /* SDMMC1_CK */
-			slew-rate = <3>;
+			slew-rate = <2>;
 			drive-push-pull;
 			bias-disable;
 		};
@@ -100,7 +100,7 @@
 		};
 		pins2 {
 			pinmux = <STM32_PINMUX('C', 12, AF12)>; /* SDMMC1_CK */
-			slew-rate = <3>;
+			slew-rate = <2>;
 			drive-push-pull;
 			bias-disable;
 		};
@@ -141,7 +141,7 @@
 		};
 		pins2 {
 			pinmux = <STM32_PINMUX('E', 3, AF9)>; /* SDMMC2_CK */
-			slew-rate = <3>;
+			slew-rate = <2>;
 			drive-push-pull;
 			bias-pull-up;
 		};
@@ -159,7 +159,7 @@
 		};
 		pins2 {
 			pinmux = <STM32_PINMUX('E', 3, AF9)>; /* SDMMC2_CK */
-			slew-rate = <3>;
+			slew-rate = <2>;
 			drive-push-pull;
 			bias-pull-up;
 		};
