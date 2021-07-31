@@ -92,7 +92,7 @@
        sdcard {
                gpio-hog;
                gpios = <14 GPIO_ACTIVE_HIGH>;
-               output-high;
+               output-low;
                line-name = "ldo-sel";
        };
 };
@@ -326,10 +326,6 @@
 	st,use-ckin;
 	bus-width = <4>;
 	vmmc-supply = <&v3v3>;
-	sd-uhs-sdr12;
-	sd-uhs-sdr25;
-	sd-uhs-sdr50;
-	sd-uhs-ddr50;
 	status = "okay";
 };
 
