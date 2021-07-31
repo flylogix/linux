@@ -314,6 +314,7 @@
 	cd-gpios = <&gpiog 1 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
 	disable-wp;
 	st,neg-edge;
+	st,use-ckin;
 	bus-width = <4>;
 	vmmc-supply = <&v3v3>;
 	status = "okay";
