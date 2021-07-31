@@ -88,6 +88,15 @@
 	};
 };
 
+&gpiof {
+       sdcard {
+               gpio-hog;
+               gpios = <14 GPIO_ACTIVE_HIGH>;
+               output-high;
+               line-name = "ldo-sel";
+       };
+};
+
 &adc {
 	pinctrl-names = "default";
 	pinctrl-0 = <&adc12_ain_pins_a>;
@@ -317,6 +326,10 @@
 	st,use-ckin;
 	bus-width = <4>;
 	vmmc-supply = <&v3v3>;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-ddr50;
 	status = "okay";
 };
 
