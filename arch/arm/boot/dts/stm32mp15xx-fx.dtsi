@@ -69,6 +69,13 @@
 			default-state = "off";
 			status = "okay";
 		};
+		led-green {
+			label = "disk-activity";
+			gpios = <&gpiof 8 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "disk-activity";
+			default-state = "off";
+			status = "okay";
+		};
 	};
 
 	usb_phy_tuning:usb-phy-tuning {
