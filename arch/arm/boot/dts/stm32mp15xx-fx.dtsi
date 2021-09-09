@@ -72,7 +72,7 @@
 		led-green {
 			label = "disk-activity";
 			gpios = <&gpiof 8 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "disk-activity";
+			linux,default-trigger = "mmc0";
 			default-state = "off";
 			status = "okay";
 		};
