@@ -1503,6 +1503,10 @@ int __sys_socket(int family, int type, int protocol)
 	struct socket *sock;
 	int flags;
 
+	/* Flylogix - override TCP as MPTCP */
+	if (type == SOCK_STREAM && (type == IPPROTO_TCP || type == 0))
+		type = IPPROTO_MPTCP;
+
 	/* Check the SOCK_* constants for consistency.  */
 	BUILD_BUG_ON(SOCK_CLOEXEC != O_CLOEXEC);
 	BUILD_BUG_ON((SOCK_MAX | SOCK_TYPE_MASK) != SOCK_TYPE_MASK);
