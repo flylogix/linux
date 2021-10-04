@@ -105,6 +105,9 @@
 #include <net/busy_poll.h>
 #include <linux/errqueue.h>
 
+#include <linux/in.h>
+#include <linux/ip.h>
+
 #ifdef CONFIG_NET_RX_BUSY_POLL
 unsigned int sysctl_net_busy_read __read_mostly;
 unsigned int sysctl_net_busy_poll __read_mostly;
@@ -1504,7 +1507,7 @@ int __sys_socket(int family, int type, int protocol)
 	int flags;
 
 	/* Flylogix - override TCP as MPTCP */
-	if (type == SOCK_STREAM && (type == IPPROTO_TCP || type == 0))
+	if (IS_ENABLED(CONFIG_MPTCP) && type == SOCK_STREAM && (protocol == IPPROTO_TCP || protocol == 0))
 		type = IPPROTO_MPTCP;
 
 	/* Check the SOCK_* constants for consistency.  */
