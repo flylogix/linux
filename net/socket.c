@@ -1508,7 +1508,7 @@ int __sys_socket(int family, int type, int protocol)
 
 	/* Flylogix - override TCP as MPTCP */
 	if (IS_ENABLED(CONFIG_MPTCP) && type == SOCK_STREAM && (protocol == IPPROTO_TCP || protocol == 0))
-		proto = IPPROTO_MPTCP;
+		protocol = IPPROTO_MPTCP;
 
 	/* Check the SOCK_* constants for consistency.  */
 	BUILD_BUG_ON(SOCK_CLOEXEC != O_CLOEXEC);
