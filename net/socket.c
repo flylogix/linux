@@ -1506,10 +1506,6 @@ int __sys_socket(int family, int type, int protocol)
 	struct socket *sock;
 	int flags;
 
-	/* Flylogix - override TCP as MPTCP */
-	if (IS_ENABLED(CONFIG_MPTCP) && type == SOCK_STREAM && (protocol == IPPROTO_TCP || protocol == 0))
-		protocol = IPPROTO_MPTCP;
-
 	/* Check the SOCK_* constants for consistency.  */
 	BUILD_BUG_ON(SOCK_CLOEXEC != O_CLOEXEC);
 	BUILD_BUG_ON((SOCK_MAX | SOCK_TYPE_MASK) != SOCK_TYPE_MASK);
@@ -1523,6 +1519,10 @@ int __sys_socket(int family, int type, int protocol)
 
 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
 		flags = (flags & ~SOCK_NONBLOCK) | O_NONBLOCK;
+
+	/* Flylogix - override TCP as MPTCP */
+	if (IS_ENABLED(CONFIG_MPTCP) && (type == SOCK_STREAM) && (protocol == IPPROTO_TCP || protocol == 0))
+		protocol = IPPROTO_MPTCP;
 
 	retval = sock_create(family, type, protocol, &sock);
 	if (retval < 0)
