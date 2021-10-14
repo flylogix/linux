@@ -7253,11 +7253,13 @@ int sched_setscheduler(struct task_struct *p, int policy,
 {
 	return _sched_setscheduler(p, policy, param, true);
 }
+EXPORT_SYMBOL_GPL(sched_setscheduler); // Flylogix - for WF111 module
 
 int sched_setattr(struct task_struct *p, const struct sched_attr *attr)
 {
 	return __sched_setscheduler(p, attr, true, true);
 }
+EXPORT_SYMBOL_GPL(sched_setattr); // Flylogix - for WF111 module
 
 int sched_setattr_nocheck(struct task_struct *p, const struct sched_attr *attr)
 {
