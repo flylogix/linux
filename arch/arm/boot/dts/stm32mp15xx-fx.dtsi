@@ -350,6 +350,7 @@
 	st,use-ckin;
 	bus-width = <4>;
 	vmmc-supply = <&v3v3>;
+	post-power-on-delay-ms = <1000>;
 	status = "okay";
 };
 
