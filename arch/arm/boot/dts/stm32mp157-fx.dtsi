@@ -1145,8 +1145,6 @@
 			clocks = <&rcc SDMMC1_K>;
 			clock-names = "apb_pclk";
 			resets = <&rcc SDMMC1_R>;
-			cap-sd-highspeed;
-			cap-mmc-highspeed;
 			max-frequency = <50000000>;
 			status = "disabled";
 		};
@@ -1160,8 +1158,6 @@
 			clocks = <&rcc SDMMC2_K>;
 			clock-names = "apb_pclk";
 			resets = <&rcc SDMMC2_R>;
-			cap-sd-highspeed;
-			cap-mmc-highspeed;
 			max-frequency = <50000000>;
 			status = "disabled";
 		};
