@@ -912,14 +912,6 @@
 			status = "disabled";
 		};
 
-		hsem: hwspinlock@4c000000 {
-			compatible = "st,stm32-hwspinlock";
-			#hwlock-cells = <2>;
-			reg = <0x4c000000 0x400>;
-			clocks = <&rcc HSEM>;
-			clock-names = "hsem";
-		};
-
 		ipcc: mailbox@4c001000 {
 			compatible = "st,stm32mp1-ipcc";
 			#mbox-cells = <1>;
@@ -975,7 +967,6 @@
 			interrupt-controller;
 			#interrupt-cells = <2>;
 			reg = <0x5000d000 0x400>;
-			hwlocks = <&hsem 1 1>;
 		};
 
 		syscfg: syscon@50020000 {
@@ -1332,7 +1323,6 @@
 			ranges = <0 0x50002000 0xa400>;
 			interrupt-parent = <&exti>;
 			st,syscfg = <&exti 0x60 0xff>;
-			hwlocks = <&hsem 0 1>;
 			pins-are-numbered;
 
 			gpioa: gpio@50002000 {
@@ -1465,7 +1455,6 @@
 			pins-are-numbered;
 			interrupt-parent = <&exti>;
 			st,syscfg = <&exti 0x60 0xff>;
-			hwlocks = <&hsem 0 1>;
 
 			gpioz: gpio@54004000 {
 				gpio-controller;
