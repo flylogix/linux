@@ -349,7 +349,7 @@
 	st,neg-edge;
 	st,use-ckin;
 	bus-width = <4>;
-	vmmc-supply = <&v3v3>;
+	vmmc-supply = <&vdd_sd>;
 	status = "okay";
 };
 
